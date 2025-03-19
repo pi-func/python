@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.0] - 2025-03-19
 
+### Added
+- Changes in PROTOCOLS.md
+- Changes in src/pifunc/example/basic_calculator.py
+- Changes in src/pifunc/example/data_structure_functions.py
+- Changes in src/pifunc/example/database_operations.py
+- Changes in src/pifunc/example/docker-compose-basic.yml
+- Changes in src/pifunc/example/docker-compose-microservices.yml
+- Changes in src/pifunc/example/docker-compose-monitoring.yml
+- Changes in src/pifunc/example/file_operations.py
+- Changes in src/pifunc/example/math_functions.py
+- Changes in src/pifunc/example/network_operations.py
+- Changes in src/pifunc/example/protocol_math_functions.py
+- Changes in src/pifunc/example/string_functions.py
+
+### Changed
+- Changes in src/pifunc/example/clients_examples.py
+
+## [0.1.0] - 2025-03-19
+
 ## [0.1.0] - 2025-03-19
 
 ### Added
