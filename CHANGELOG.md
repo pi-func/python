@@ -4,28 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.0] - 2025-03-19
 
-### Added
-- Changes in .pre-commit-config.yaml
-- Changes in CONTRIBUTING.md
-- Changes in changelog.py
-- Changes in git.sh
-- Changes in index.html
-- Changes in init.sh
-- Changes in requirements-dev.txt
-- Changes in requirements.txt
-- Changes in setup.cfg
-- Changes in setup.py
-- Changes in simple_service.py
-- Changes in src/pifunc/__init__.py
-- Changes in src/pifunc/_version.py
-- Changes in src/pifunc/adapters/__init__.py
-- Changes in src/pifunc/adapters/http_adapter.py
-- Changes in src/pifunc/adapters/mqtt_adapter.py
-- Changes in src/pifunc/cli.py
-- Changes in src/pifunc/example/multi_protocol_clients.py
-- Changes in src/pifunc/example/pro.py
-- Changes in src/pifunc/generator.py
-- Changes in test.sh
-- Changes in tox.ini
-- Changes in version.sh
+## [0.1.2] - 2025-03-19
 
+### Added
+- Initial release of PIfunc with multi-protocol support
+- Core service decorator implementation for HTTP, gRPC, MQTT, WebSocket, and GraphQL protocols
+- CLI tool for service management and interaction
+- Type-safe function exposure across protocols
+- Hot reload capability for development
+- Automatic API documentation generation
+- Protocol-specific configuration options
+- Example implementations and usage guides
+- Development tools and scripts:
+  - Pre-commit hooks for code quality
+  - Test automation scripts
+  - Version management utilities
+  - Build and publish workflows
+
+### Changed
+- Updated project structure for better modularity
+- Enhanced HTTP and MQTT adapters with improved error handling
+- Refined CLI interface for better user experience
+
+### Documentation
+- Added comprehensive README with installation and usage guides
+- Included detailed API documentation
+- Added contribution guidelines
+- Created example code snippets for common use cases

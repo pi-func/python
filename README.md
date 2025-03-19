@@ -184,24 +184,21 @@ def create_product(product: Product) -> Product:
 
 ## 🛠️ CLI Usage
 
-PIfunc includes a powerful CLI for managing and interacting with your services:
+PIfunc includes a CLI for interacting with your services:
 
 ```bash
-# Start a service
-pifunc serve calculator.py
+# Call a function via HTTP (default protocol)
+pifunc call add --args '{"a": 5, "b": 3}'
 
-# Generate client code
-pifunc generate client --language typescript --protocols http,websocket
-
-# Call a function
+# Call a function with specific protocol
 pifunc call add --protocol http --args '{"a": 5, "b": 3}'
 
-# View service documentation
-pifunc docs --output ./docs
-
-# Run a benchmark
-pifunc benchmark add --protocol grpc --iterations 1000 --concurrency 10
+# Get help
+pifunc --help
+pifunc call --help
 ```
+
+Note: Additional CLI features like service management, client code generation, documentation viewing, and benchmarking are coming in future releases.
 
 ## 📖 Documentation
 
@@ -231,32 +228,7 @@ PIfunc is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for deta
 
 Generate directory structures from ASCII art or Markdown files.
 
-+ [CONTRIBUTION.md](CONTRIBUTION.md)
-
-## Development
-
-
-### Setting up a virtual environment
-
-Create a virtual environment
-
-```bash
-python -m venv venv
-```
-
-```bash
-source venv/bin/activate
-```
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-```bash
-pip install -e .
-```
-
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
 
 ---
 
@@ -290,7 +262,7 @@ pip install -e .
       <img src="https://img.shields.io/github/license/pifunc/pifunc.svg" alt="License">
     </a>
     <a href="https://discord.gg/pifunc">
-      <img src="https://img.shields.io/discord/1234567890?color=7289da&label=discord&logo=discord&logoColor=white" alt="Discord">
+      <img src="https://img.shields.io/discord/1156621449362239529?color=7289da&label=discord&logo=discord&logoColor=white" alt="Discord">
     </a>
   </p>
 </div>
