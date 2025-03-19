@@ -1,4 +1,4 @@
-pifunc>=0.1.5
+pifunc>=0.1.6
 aiohttp>=3.8.0
 websockets>=10.0
 typing-extensions>=4.0.0

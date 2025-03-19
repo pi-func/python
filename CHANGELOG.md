@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.6] - 2025-03-19
 
+## [0.1.6] - 2025-03-19
+
 ### Added
 - Changes in calculator/Dockerfile
 - Changes in calculator/README.md

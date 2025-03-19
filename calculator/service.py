@@ -3,9 +3,9 @@ Calculator example demonstrating multiple protocols with pifunc.
 """
 import os
 from typing import Dict, Union
-from pifunc import http, websocket, run_services
+from pifunc import service, run_services
 
-@http("/calculator")
+@service(protocols=["http"], http={"path": "/calculator", "method": "GET"})
 def serve_calculator() -> Dict[str, Union[str, bytes]]:
     """Serve the calculator HTML interface."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,38 +19,41 @@ def serve_calculator() -> Dict[str, Union[str, bytes]]:
         "content_type": "text/html"
     }
 
-@http("/api/calculator/add")
+@service(protocols=["http"], http={"path": "/api/calculator/add", "method": "POST"})
 def add_http(a: float, b: float) -> Dict[str, float]:
     """Add two numbers via HTTP."""
     return {"result": a + b}
 
-@websocket("calculator.add")
+@service(protocols=["websocket"], websocket={"event": "calculator.add"})
 def add_websocket(a: float, b: float) -> float:
     """Add two numbers via WebSocket."""
     return a + b
 
-@http("/api/calculator/multiply")
-@websocket("calculator.multiply")
+@service(protocols=["http", "websocket"],
+         http={"path": "/api/calculator/multiply", "method": "POST"},
+         websocket={"event": "calculator.multiply"})
 def multiply(a: float, b: float) -> float:
     """Multiply two numbers - available via both HTTP and WebSocket."""
     return a * b
 
-@http("/api/calculator/divide")
-@websocket("calculator.divide")
+@service(protocols=["http", "websocket"],
+         http={"path": "/api/calculator/divide", "method": "POST"},
+         websocket={"event": "calculator.divide"})
 def divide(a: float, b: float) -> float:
     """Divide two numbers - available via both HTTP and WebSocket."""
     if b == 0:
         raise ValueError("Division by zero is not allowed")
     return a / b
 
-@http("/api/calculator/subtract")
-@websocket("calculator.subtract")
+@service(protocols=["http", "websocket"],
+         http={"path": "/api/calculator/subtract", "method": "POST"},
+         websocket={"event": "calculator.subtract"})
 def subtract(a: float, b: float) -> float:
     """Subtract two numbers - available via both HTTP and WebSocket."""
     return a - b
 
 if __name__ == "__main__":
     run_services(
-        http={"port": 8080},
-        websocket={"port": 8081}
+        http={"port": 8090},
+        websocket={"port": 8091}
     )

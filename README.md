@@ -236,6 +236,22 @@ pytest tests/test_http_adapter.py
 pytest tests/test_integration.py
 ```
 
+
+## PUBLISH
+
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
+```
+
+```bash
+sudo pip install --upgrade pip build twine
+pip install --upgrade pip build twine
+python -m build
+twine check dist/*
+twine upload dist/*
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
