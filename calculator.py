@@ -12,7 +12,6 @@ def subtract(a: int, b: int) -> int:
 
 if __name__ == "__main__":
     run_services(
-        grpc={"port": 50051},
         http={"port": 8080},
         watch=True  # Auto-reload on file changes
     )

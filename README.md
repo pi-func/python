@@ -73,7 +73,11 @@ python calculator.py
 3. Call your functions via HTTP:
 
 ```bash
-curl -X POST http://localhost:8080/api/add -H "Content-Type: application/json" -d '{"a": 5, "b": 3}'
+
+^C
+sleep 2 && curl -X POST -H "Content-Type: application/json" -d '{"a": 5, "b": 3}' http://localhost:8080/api/__main__/add
+
+`curl -X POST http://localhost:8080/api/add -H "Content-Type: application/json" -d '{"a": 5, "b": 3}'`
 # {"result": 8}
 ```
 

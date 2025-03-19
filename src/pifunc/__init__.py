@@ -110,21 +110,17 @@ def run_services(**config):
         **config: Konfiguracja dla poszczególnych protokołów i ogólne ustawienia.
                  Np. grpc={"port": 50051}, http={"port": 8080}, watch=True
     """
-    # Importujemy adaptery protokołów
-    from pifunc.adapters.http_adapter import HTTPAdapter
-    from pifunc.adapters.mqtt_adapter import MQTTAdapter
-    from pifunc.adapters.grpc_adapter import GRPCAdapter
-    from pifunc.adapters.websocket_adapter import WebSocketAdapter
-    from pifunc.adapters.graphql_adapter import GraphQLAdapter
-
-    # Tworzymy adaptery dla wszystkich obsługiwanych protokołów
-    adapters = {
-        "grpc": GRPCAdapter(),
-        "http": HTTPAdapter(),
-        "mqtt": MQTTAdapter(),
-        "websocket": WebSocketAdapter(),
-        "graphql": GraphQLAdapter()
-    }
+    # Tworzymy słownik na adaptery
+    adapters = {}
+    
+    # Importujemy tylko te adaptery, które są potrzebne
+    if "http" in config:
+        from pifunc.adapters.http_adapter import HTTPAdapter
+        adapters["http"] = HTTPAdapter()
+        
+    if "mqtt" in config:
+        from pifunc.adapters.mqtt_adapter import MQTTAdapter
+        adapters["mqtt"] = MQTTAdapter()
 
     # Konfigurujemy adaptery
     for protocol, adapter in adapters.items():
