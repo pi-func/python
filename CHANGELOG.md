@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2025-03-19
+
+### Added
+- Changes in calculator/Dockerfile
+- Changes in calculator/README.md
+- Changes in calculator/client.py
+- Changes in calculator/docker-compose.yml
+- Changes in calculator/requirements.txt
+- Changes in calculator/service.py
+- Changes in calculator/static/index.html
+- Changes in src/pifunc/example/README.md
+- Changes in src/pifunc/example/data_service/client.py
+- Changes in src/pifunc/example/data_service/docker-compose.yml
+- Changes in src/pifunc/example/data_service/service.py
+- Changes in src/pifunc/example/docker-compose.yml
+- Changes in src/pifunc/example/math_service/Dockerfile
+- Changes in src/pifunc/example/math_service/client.py
+- Changes in src/pifunc/example/math_service/docker-compose.yml
+- Changes in src/pifunc/example/math_service/service.py
+- Changes in src/pifunc/example/string_service/Dockerfile
+- Changes in src/pifunc/example/string_service/client.py
+- Changes in src/pifunc/example/string_service/docker-compose.yml
+- Changes in src/pifunc/example/string_service/service.py
+
 ## [0.1.4] - 2025-03-19
 
 ### Added
