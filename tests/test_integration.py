@@ -167,10 +167,16 @@ async def test_http_create_product(test_service, http_client):
         "in_stock": True
     }
     
+    # Add debug logging
+    logger.info(f"Sending HTTP request to create product: {product_data}")
+    
     response = http_client.post(
         f"http://localhost:{test_service['http']}/api/products",
-        json={"product": product_data}  # Wrap in product parameter
+        json={"product": product_data}
     )
+    
+    # Add debug logging
+    logger.info(f"Received HTTP response: {response.text}")
     
     assert response.status_code == 200, f"Error: {response.text}"
     result = response.json()
@@ -215,21 +221,29 @@ async def test_mqtt_create_product(test_service, mock_mqtt):
     
     def on_response(client, userdata, msg):
         nonlocal response_data
-        response_data = json.loads(msg.payload)
-        response_received.set()
+        try:
+            response_data = json.loads(msg.payload)
+            response_received.set()
+        except Exception as e:
+            logger.error(f"Error in MQTT response handler: {e}")
     
     mock_mqtt.handlers["products/create/response"] = on_response
+    
+    # Add debug logging
+    logger.info(f"Sending MQTT message: {product_data}")
     
     # Simulate MQTT message
     mock_mqtt.on_message(None, None, MagicMock(
         topic="products/create",
-        payload=json.dumps({"product": product_data}).encode()  # Wrap in product parameter
+        payload=json.dumps({"product": product_data}).encode()
     ))
     
     # Wait for response with timeout
     try:
         await asyncio.wait_for(response_received.wait(), timeout=1.0)
     except asyncio.TimeoutError:
+        # Add debug logging
+        logger.error("MQTT response timeout. Messages received:", mock_mqtt.messages)
         pytest.fail("Timeout waiting for MQTT response")
     
     assert response_data is not None

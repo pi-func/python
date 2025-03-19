@@ -92,20 +92,24 @@ class MQTTAdapter(ProtocolAdapter):
                 # Dekodujemy wiadomość jako JSON
                 try:
                     payload = json.loads(msg.payload.decode())
+                    logger.debug(f"Decoded payload: {payload}")
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to decode JSON payload: {e}")
                     self._publish_error(topic, f"Invalid JSON payload: {str(e)}")
                     return
 
                 # Sprawdzamy i konwertujemy typy argumentów
-                kwargs = {}
+                converted_kwargs = {}
                 for param_name, param in signature.parameters.items():
                     if param_name in payload:
                         try:
-                            if param.annotation != inspect.Parameter.empty:
-                                kwargs[param_name] = param.annotation(payload[param_name])
+                            if param.annotation == dict:
+                                # For dict type, just pass through
+                                converted_kwargs[param_name] = payload[param_name]
+                            elif param.annotation != inspect.Parameter.empty:
+                                converted_kwargs[param_name] = param.annotation(payload[param_name])
                             else:
-                                kwargs[param_name] = payload[param_name]
+                                converted_kwargs[param_name] = payload[param_name]
                         except (ValueError, TypeError) as e:
                             logger.error(f"Type conversion error for {param_name}: {e}")
                             self._publish_error(topic, f"Invalid type for parameter {param_name}: {str(e)}")
@@ -113,7 +117,8 @@ class MQTTAdapter(ProtocolAdapter):
 
                 # Wywołujemy funkcję
                 try:
-                    result = func(**kwargs)
+                    logger.debug(f"Calling function with kwargs: {converted_kwargs}")
+                    result = func(**converted_kwargs)
                 except TypeError as e:
                     logger.error(f"Function call error: {e}")
                     self._publish_error(topic, f"Invalid parameters: {str(e)}")
@@ -138,8 +143,9 @@ class MQTTAdapter(ProtocolAdapter):
                 # Publikujemy wynik
                 response_topic = f"{topic}/response"
                 try:
-                    self.client.publish(response_topic, json.dumps({"result": result}))
-                    logger.debug(f"Published response to {response_topic}")
+                    response_payload = json.dumps({"result": result})
+                    logger.debug(f"Publishing response to {response_topic}: {response_payload}")
+                    self.client.publish(response_topic, response_payload)
                 except Exception as e:
                     logger.error(f"Failed to publish response: {e}")
 
@@ -151,8 +157,9 @@ class MQTTAdapter(ProtocolAdapter):
         """Publikuje komunikat o błędzie."""
         error_topic = f"{topic}/error"
         try:
-            self.client.publish(error_topic, json.dumps({"error": error_message}))
-            logger.debug(f"Published error to {error_topic}: {error_message}")
+            error_payload = json.dumps({"error": error_message})
+            logger.debug(f"Publishing error to {error_topic}: {error_message}")
+            self.client.publish(error_topic, error_payload)
         except Exception as e:
             logger.error(f"Failed to publish error message: {e}")
 

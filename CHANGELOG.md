@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.0] - 2025-03-19
+
+### Added
+- Changes in src/pifunc/adapters/amqp_adapter.py
+- Changes in src/pifunc/adapters/zeromq_adapter.py
+- Changes in src/pifunc/example/clients_examples.py
+- Changes in src/pifunc/example/multi_protocol_service.py
+
+## [0.1.3] - 2025-03-20
+
+### Changed
+- Enhanced HTTP adapter with improved type handling and parameter conversion
+- Enhanced MQTT adapter with better message processing and error handling
+- Added detailed logging for both HTTP and MQTT adapters
+- Fixed dict parameter handling in service functions
+- Improved error messages and debugging capabilities
+
+### Fixed
+- Fixed type conversion issues with dict parameters in HTTP and MQTT adapters
+- Fixed MQTT message handling and response routing
+- Resolved issues with async function handling in both adapters
+
+### Documentation
+- Added detailed logging messages for better debugging
+- Improved error messages for better problem diagnosis
+- Added debug-level logging for request/response payloads
+
 ## [0.1.2] - 2025-03-19
 
 ### Added

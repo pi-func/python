@@ -65,7 +65,9 @@ class HTTPAdapter(ProtocolAdapter):
                 # Pobieramy argumenty z body dla POST/PUT/PATCH
                 if method in ["POST", "PUT", "PATCH"]:
                     try:
-                        kwargs = await request.json()
+                        body = await request.json()
+                        logger.debug(f"Received request body: {body}")
+                        kwargs = body
                     except json.JSONDecodeError as e:
                         logger.error(f"JSON decode error: {e}")
                         raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
@@ -78,11 +80,20 @@ class HTTPAdapter(ProtocolAdapter):
 
                 # Convert types if needed
                 sig = inspect.signature(func)
+                logger.debug(f"Function signature: {sig}")
+                logger.debug(f"Received kwargs: {kwargs}")
+
+                converted_kwargs = {}
                 for param_name, param in sig.parameters.items():
                     if param_name in kwargs:
                         try:
-                            if param.annotation != inspect.Parameter.empty:
-                                kwargs[param_name] = param.annotation(kwargs[param_name])
+                            if param.annotation == dict:
+                                # For dict type, just pass through
+                                converted_kwargs[param_name] = kwargs[param_name]
+                            elif param.annotation != inspect.Parameter.empty:
+                                converted_kwargs[param_name] = param.annotation(kwargs[param_name])
+                            else:
+                                converted_kwargs[param_name] = kwargs[param_name]
                         except (ValueError, TypeError) as e:
                             logger.error(f"Type conversion error for {param_name}: {e}")
                             raise HTTPException(
@@ -92,7 +103,8 @@ class HTTPAdapter(ProtocolAdapter):
 
                 # Wywołujemy funkcję
                 try:
-                    result = func(**kwargs)
+                    logger.debug(f"Calling function with kwargs: {converted_kwargs}")
+                    result = func(**converted_kwargs)
                 except TypeError as e:
                     logger.error(f"Function call error: {e}")
                     raise HTTPException(
