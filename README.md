@@ -1,106 +1,4 @@
-# python
-Protocol Interface Functions
-
-
-
-Generate directory structures from ASCII art or Markdown files.
-
-+ [CONTRIBUTION.md](CONTRIBUTION.md)
-
-## Installation
-
-
-### Setting up a virtual environment
-
-Create a virtual environment
-
-```bash
-python -m venv venv
-```
-
-```bash
-source venv/bin/activate
-```
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-```bash
-pip install -e .
-```
-
-
----
-
-<div align="center">
-  <img src="assets/logo.svg" alt="PIfunc Logo" width="200">
-  <h1>PIfunc</h1>
-  <p><strong>Protocol Interface Functions</strong></p>
-  <p>One function, every protocol. Everywhere.</p>
-  
-  <p>
-    <a href="#installation"><strong>Installation</strong></a> •
-    <a href="#quick-start"><strong>Quick Start</strong></a> •
-    <a href="#features"><strong>Features</strong></a> •
-    <a href="#examples"><strong>Examples</strong></a> •
-    <a href="#documentation"><strong>Documentation</strong></a> •
-    <a href="#contributing"><strong>Contributing</strong></a> •
-    <a href="#license"><strong>License</strong></a>
-  </p>
-  
-  <p>
-    <a href="https://github.com/pifunc/pifunc/actions">
-      <img src="https://github.com/pifunc/pifunc/workflows/Tests/badge.svg" alt="Tests">
-    </a>
-    <a href="https://pypi.org/project/pifunc/">
-      <img src="https://img.shields.io/pypi/v/pifunc.svg" alt="PyPI">
-    </a>
-    <a href="https://pepy.tech/project/pifunc">
-      <img src="https://pepy.tech/badge/pifunc" alt="Downloads">
-    </a>
-    <a href="https://github.com/pifunc/pifunc/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/pifunc/pifunc.svg" alt="License">
-    </a>
-    <a href="https://discord.gg/pifunc">
-      <img src="https://img.shields.io/discord/1234567890?color=7289da&label=discord&logo=discord&logoColor=white" alt="Discord">
-    </a>
-  </p>
-</div>
-
-
----
-```mermaid
-flowchart TB
-    A["Funkcja Biznesowa"] --> |"@service"| B["Router Usług"]
-    
-    B --> C["Adapter gRPC"]
-    B --> D["Adapter HTTP/REST"]
-    B --> E["Adapter MQTT"]
-    B --> F["Adapter WebSocket"]
-    B --> G["Adapter GraphQL"]
-    
-    C --> H["Serwer gRPC"]
-    D --> I["Serwer HTTP"]
-    E --> J["Broker MQTT"]
-    F --> K["Serwer WebSocket"]
-    G --> L["Endpoint GraphQL"]
-    
-    H --> M["Klient gRPC"]
-    I --> N["Klient HTTP"]
-    J --> O["Klient MQTT"]
-    K --> P["Klient WebSocket"]
-    L --> Q["Klient GraphQL"]
-    
-    R["Rejestr Konfiguracji"] --> B
-    S["System Metadanych"] --> B
-    T["Manager Protokołów"] --> B
-```
-
----
-
-## 🚀 Why PIfunc?
+# PI func -> Protocol Interface Functions
 
 PIfunc revolutionizes how you build networked applications by letting you **write your function once** and expose it via **multiple communication protocols simultaneously**. No duplicate code. No inconsistencies. Just clean, maintainable, protocol-agnostic code.
 
@@ -115,7 +13,8 @@ def add(a: int, b: int) -> int:
     return a + b
 ```
 
-**This simple function is now simultaneously available via:**
+## 🚀 This simple function is now simultaneously available via:
+
 - HTTP/REST
 - gRPC
 - MQTT
@@ -123,6 +22,8 @@ def add(a: int, b: int) -> int:
 - GraphQL
 
 ...all without writing a single line of additional code!
+
+![pifunc-graph.png](pifunc-graph.png)
 
 ## 📦 Installation
 
@@ -317,6 +218,79 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get
 ## 📄 License
 
 PIfunc is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+
+
+Generate directory structures from ASCII art or Markdown files.
+
++ [CONTRIBUTION.md](CONTRIBUTION.md)
+
+## Development
+
+
+### Setting up a virtual environment
+
+Create a virtual environment
+
+```bash
+python -m venv venv
+```
+
+```bash
+source venv/bin/activate
+```
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+```bash
+pip install -e .
+```
+
+
+---
+
+<div align="center">
+  <img src="assets/logo.svg" alt="PIfunc Logo" width="200">
+  <h1>PIfunc</h1>
+  <p><strong>Protocol Interface Functions</strong></p>
+  <p>One function, every protocol. Everywhere.</p>
+  
+  <p>
+    <a href="#installation"><strong>Installation</strong></a> •
+    <a href="#quick-start"><strong>Quick Start</strong></a> •
+    <a href="#features"><strong>Features</strong></a> •
+    <a href="#examples"><strong>Examples</strong></a> •
+    <a href="#documentation"><strong>Documentation</strong></a> •
+    <a href="#contributing"><strong>Contributing</strong></a> •
+    <a href="#license"><strong>License</strong></a>
+  </p>
+  
+  <p>
+    <a href="https://github.com/pifunc/pifunc/actions">
+      <img src="https://github.com/pifunc/pifunc/workflows/Tests/badge.svg" alt="Tests">
+    </a>
+    <a href="https://pypi.org/project/pifunc/">
+      <img src="https://img.shields.io/pypi/v/pifunc.svg" alt="PyPI">
+    </a>
+    <a href="https://pepy.tech/project/pifunc">
+      <img src="https://pepy.tech/badge/pifunc" alt="Downloads">
+    </a>
+    <a href="https://github.com/pifunc/pifunc/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/pifunc/pifunc.svg" alt="License">
+    </a>
+    <a href="https://discord.gg/pifunc">
+      <img src="https://img.shields.io/discord/1234567890?color=7289da&label=discord&logo=discord&logoColor=white" alt="Discord">
+    </a>
+  </p>
+</div>
+
+
+---
+
+---
 
 ---
 
