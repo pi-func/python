@@ -38,6 +38,16 @@ The calculator service provides:
 2. Access the web interface:
    - Open `http://localhost:8000/calculator` in your browser
 
+
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
+```
+
+```bash
+python service.py
+```
+
 ## Available Endpoints
 
 ### HTTP Endpoints
