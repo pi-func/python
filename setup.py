@@ -1,5 +1,5 @@
 """
-mdirtree - Convert markdown files into organized project structures with code files
+pifunc - Convert markdown files into organized project structures with code files
 """
 from setuptools import setup
 

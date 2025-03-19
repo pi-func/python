@@ -1,2 +1,2 @@
-# Dodajemy nowe pliki w strukturze src/mdirtree/rest/
+# Dodajemy nowe pliki w strukturze src/pifunc/rest/
 

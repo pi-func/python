@@ -1,11 +1,11 @@
 """
-mdirtree - Generate directory structures from ASCII art or Markdown files.
+pifunc - Generate directory structures from ASCII art or Markdown files.
 """
 
 # from .generator import DirectoryStructureGenerator
 # from .cli import main
 
-__version__ = "0.1.1"
+__version__ = "0.1.0"
 __all__ = ["service", "run_services", "load_module_from_file"]
 
 # pifunc/__init__.py

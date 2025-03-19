@@ -91,6 +91,43 @@ pytest --cov=pifunc
 pytest tests/test_http_adapter.py
 ```
 
+
+
+
+1. Instalacja podstawowa:
+```bash
+pip install -r requirements.txt
+```
+
+2. Instalacja dla deweloperów:
+```bash
+pip install -r requirements-dev.txt
+```
+
+3. Uruchomienie testów:
+```bash
+tox
+```
+
+4. Instalacja pre-commit hooków:
+```bash
+pre-commit install
+```
+
+5. Sprawdzenie formatowania:
+```bash
+black .
+flake8 .
+mypy src/pifunc
+isort .
+```
+
+Aktualizacja
+```bash
+pip install -e .
+```
+
+
 ## Coding Standards
 
 - Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) coding style
