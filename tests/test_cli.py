@@ -1,11 +1,18 @@
 import json
 import pytest
+import requests_mock
 from click.testing import CliRunner
 from pifunc.cli import cli
 
 @pytest.fixture
 def runner():
     return CliRunner()
+
+@pytest.fixture(autouse=True)
+def _requests_mock():
+    """Automatically use requests mock for all tests"""
+    with requests_mock.Mocker() as m:
+        yield m
 
 def test_cli_help(runner):
     """Test CLI help command"""
@@ -19,10 +26,10 @@ def test_call_command_help(runner):
     assert result.exit_code == 0
     assert 'Call a service with the specified arguments' in result.output
 
-def test_call_with_http_protocol(runner, requests_mock):
+def test_call_with_http_protocol(runner, _requests_mock):
     """Test calling a service with HTTP protocol"""
     mock_response = {'result': 8}
-    requests_mock.post(
+    _requests_mock.post(
         'http://localhost:8080/api/add',
         json=mock_response
     )
@@ -60,9 +67,9 @@ def test_call_with_unsupported_protocol(runner):
     assert result.exit_code == 0
     assert 'Protocol unsupported not yet implemented' in result.output
 
-def test_call_http_service_failure(runner, requests_mock):
+def test_call_http_service_failure(runner, _requests_mock):
     """Test handling HTTP service failure"""
-    requests_mock.post(
+    _requests_mock.post(
         'http://localhost:8080/api/add',
         status_code=500
     )

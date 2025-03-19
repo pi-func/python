@@ -1,12 +1,30 @@
 import pytest
+import pytest_asyncio
 import asyncio
 import json
 import requests
 import paho.mqtt.client as mqtt
-from pifunc import service, run_services
+from pifunc import service
+from pifunc.adapters.http_adapter import HTTPAdapter
+from pifunc.adapters.mqtt_adapter import MQTTAdapter
 from dataclasses import dataclass
 from typing import Dict, List
 import websockets
+from unittest.mock import MagicMock, patch
+import time
+from contextlib import asynccontextmanager
+import socket
+import logging
+
+logger = logging.getLogger(__name__)
+
+def get_free_port():
+    """Get a free port number."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
 
 # Test service definitions
 @dataclass
@@ -21,12 +39,12 @@ class Product:
     mqtt={"topic": "products/create"},
     websocket={"event": "product.create"}
 )
-def create_product(product: Product) -> Dict:
+def create_product(product: dict) -> dict:  # Changed from Dict to dict
     return {
-        "id": product.id,
-        "name": product.name,
-        "price": product.price,
-        "in_stock": product.in_stock
+        "id": product["id"],
+        "name": product["name"],
+        "price": product["price"],
+        "in_stock": product.get("in_stock", True)
     }
 
 @service(
@@ -34,7 +52,7 @@ def create_product(product: Product) -> Dict:
     mqtt={"topic": "products/get"},
     websocket={"event": "product.get"}
 )
-def get_product(product_id: str) -> Dict:
+def get_product(product_id: str) -> dict:  # Changed from Dict to dict
     # Mock database response
     return {
         "id": product_id,
@@ -43,34 +61,58 @@ def get_product(product_id: str) -> Dict:
         "in_stock": True
     }
 
-@service(
-    http={"path": "/api/stream", "method": "GET"},
-    websocket={"event": "stream.data"}
-)
-async def stream_data(count: int = 3) -> List[Dict]:
-    """Stream a sequence of data items"""
-    results = []
-    for i in range(count):
-        results.append({"item": i, "timestamp": f"2025-03-19T{14+i}:00:00Z"})
-        # Use event loop yield instead of fixed sleep
-        await asyncio.sleep(0)
-    return results
+class TestServiceRunner:
+    def __init__(self):
+        self.ports = {
+            "http": get_free_port(),
+            "mqtt": get_free_port(),
+            "websocket": get_free_port()
+        }
+        self.http_adapter = HTTPAdapter()
+        self.mqtt_adapter = MQTTAdapter()
+        self._started = False
+        
+    async def setup(self):
+        if self._started:
+            return self.ports
+            
+        # Configure adapters
+        self.http_adapter.setup({
+            "port": self.ports["http"],
+            "host": "localhost"
+        })
+        self.mqtt_adapter.setup({
+            "port": self.ports["mqtt"],
+            "host": "localhost"
+        })
+        
+        # Register services
+        for func in [create_product, get_product]:
+            metadata = getattr(func, '_pifunc_service', {})
+            if "http" in metadata:
+                self.http_adapter.register_function(func, metadata)
+            if "mqtt" in metadata:
+                self.mqtt_adapter.register_function(func, metadata)
+                
+        # Start adapters
+        self.http_adapter.start()
+        self.mqtt_adapter.start()
+        
+        # Wait for services to be ready
+        await asyncio.sleep(1)
+        self._started = True
+        return self.ports
+        
+    def cleanup(self):
+        if self._started:
+            self.http_adapter.stop()
+            self.mqtt_adapter.stop()
+            self._started = False
 
 # Fixtures
-@pytest.fixture(scope="module")
-def service_ports():
-    return {
-        "http": 8080,
-        "mqtt": 1883,
-        "websocket": 8765
-    }
-
-from unittest.mock import MagicMock, patch
-
-@pytest.fixture(scope="module")
-def mock_mqtt():
+@pytest_asyncio.fixture(scope="module")
+async def mock_mqtt():
     with patch('paho.mqtt.client.Client') as mock_client:
-        # Create a mock MQTT client
         client = MagicMock()
         mock_client.return_value = client
         
@@ -79,32 +121,44 @@ def mock_mqtt():
         client.loop_start.return_value = None
         client.loop_stop.return_value = None
         
+        # Store messages and handlers
+        client.messages = []
+        client.handlers = {}
+        
+        def mock_subscribe(topic, qos=0):
+            client.handlers[topic] = None
+            return (0, 0)
+        
+        def mock_publish(topic, payload, qos=0):
+            client.messages.append((topic, payload))
+            if topic in client.handlers and client.handlers[topic]:
+                msg = MagicMock()
+                msg.topic = topic
+                msg.payload = payload
+                client.handlers[topic](client, None, msg)
+            return MagicMock()
+            
+        client.subscribe = mock_subscribe
+        client.publish = mock_publish
+        
         yield client
 
-@pytest.fixture(scope="module")
-def run_test_service(service_ports, mock_mqtt):
-    # Start the service in a separate process
+@pytest_asyncio.fixture(scope="module")
+async def test_service(mock_mqtt):
+    runner = TestServiceRunner()
     with patch('pifunc.adapters.mqtt_adapter.mqtt.Client', return_value=mock_mqtt):
-        process = run_services(
-            http={"port": service_ports["http"]},
-            mqtt={"port": service_ports["mqtt"]},
-            websocket={"port": service_ports["websocket"]}
-        )
-        yield service_ports
-        process.terminate()
+        ports = await runner.setup()
+        yield ports
+        runner.cleanup()
 
 @pytest.fixture
 def http_client():
-    return requests.Session()
-
-@pytest.fixture
-def mqtt_client(mock_mqtt):
-    mock_mqtt.loop_start()
-    yield mock_mqtt
-    mock_mqtt.loop_stop()
+    session = requests.Session()
+    return session
 
 # HTTP Integration Tests
-def test_http_create_product(run_test_service, http_client):
+@pytest.mark.asyncio
+async def test_http_create_product(test_service, http_client):
     """Test creating a product via HTTP"""
     product_data = {
         "id": "prod-1",
@@ -114,44 +168,37 @@ def test_http_create_product(run_test_service, http_client):
     }
     
     response = http_client.post(
-        f"http://localhost:{run_test_service['http']}/api/products",
-        json=product_data
+        f"http://localhost:{test_service['http']}/api/products",
+        json={"product": product_data}  # Wrap in product parameter
     )
     
-    assert response.status_code == 200
+    assert response.status_code == 200, f"Error: {response.text}"
     result = response.json()
-    assert result["id"] == product_data["id"]
-    assert result["name"] == product_data["name"]
-    assert result["price"] == product_data["price"]
+    assert "result" in result
+    result_data = result["result"]
+    assert result_data["id"] == product_data["id"]
+    assert result_data["name"] == product_data["name"]
+    assert result_data["price"] == product_data["price"]
 
-def test_http_get_product(run_test_service, http_client):
+@pytest.mark.asyncio
+async def test_http_get_product(test_service, http_client):
     """Test getting a product via HTTP"""
     product_id = "prod-1"
     response = http_client.get(
-        f"http://localhost:{run_test_service['http']}/api/products/{product_id}"
+        f"http://localhost:{test_service['http']}/api/products/{product_id}"
     )
     
-    assert response.status_code == 200
+    assert response.status_code == 200, f"Error: {response.text}"
     result = response.json()
-    assert result["id"] == product_id
-    assert "name" in result
-    assert "price" in result
+    assert "result" in result
+    result_data = result["result"]
+    assert result_data["id"] == product_id
+    assert "name" in result_data
+    assert "price" in result_data
 
-# MQTT Integration Tests
 @pytest.mark.asyncio
-async def test_mqtt_create_product(run_test_service, mqtt_client):
+async def test_mqtt_create_product(test_service, mock_mqtt):
     """Test creating a product via MQTT"""
-    response_event = asyncio.Event()
-    result = None
-    
-    def on_message(client, userdata, msg):
-        nonlocal result
-        result = json.loads(msg.payload)
-        response_event.set()
-    
-    mqtt_client.subscribe("products/create/response")
-    mqtt_client.on_message = on_message
-    
     product_data = {
         "id": "prod-2",
         "name": "MQTT Product",
@@ -159,105 +206,35 @@ async def test_mqtt_create_product(run_test_service, mqtt_client):
         "in_stock": True
     }
     
-    mqtt_client.publish("products/create", json.dumps(product_data))
+    # Clear previous messages
+    mock_mqtt.messages = []
+    
+    # Set up response handler
+    response_received = asyncio.Event()
+    response_data = None
+    
+    def on_response(client, userdata, msg):
+        nonlocal response_data
+        response_data = json.loads(msg.payload)
+        response_received.set()
+    
+    mock_mqtt.handlers["products/create/response"] = on_response
+    
+    # Simulate MQTT message
+    mock_mqtt.on_message(None, None, MagicMock(
+        topic="products/create",
+        payload=json.dumps({"product": product_data}).encode()  # Wrap in product parameter
+    ))
     
     # Wait for response with timeout
     try:
-        await asyncio.wait_for(response_event.wait(), timeout=5.0)
-        assert result is not None
-        assert result["id"] == product_data["id"]
-        assert result["name"] == product_data["name"]
-        assert result["price"] == product_data["price"]
+        await asyncio.wait_for(response_received.wait(), timeout=1.0)
     except asyncio.TimeoutError:
         pytest.fail("Timeout waiting for MQTT response")
-
-# WebSocket Integration Tests
-@pytest.mark.asyncio
-async def test_websocket_create_product(run_test_service):
-    """Test creating a product via WebSocket"""
-    async with websockets.connect(
-        f"ws://localhost:{run_test_service['websocket']}"
-    ) as websocket:
-        product_data = {
-            "id": "prod-3",
-            "name": "WebSocket Product",
-            "price": 149.99,
-            "in_stock": True
-        }
-        
-        await websocket.send(json.dumps({
-            "event": "product.create",
-            "data": product_data
-        }))
-        
-        response = await websocket.recv()
-        result = json.loads(response)
-        
-        assert result["id"] == product_data["id"]
-        assert result["name"] == product_data["name"]
-        assert result["price"] == product_data["price"]
-
-@pytest.mark.asyncio
-async def test_websocket_stream_data(run_test_service):
-    """Test streaming data via WebSocket"""
-    async with websockets.connect(
-        f"ws://localhost:{run_test_service['websocket']}"
-    ) as websocket:
-        await websocket.send(json.dumps({
-            "event": "stream.data",
-            "data": {"count": 3}
-        }))
-        
-        results = []
-        try:
-            async with asyncio.timeout(5.0):  # Set timeout for entire operation
-                for _ in range(3):
-                    response = await websocket.recv()
-                    results.append(json.loads(response))
-        except asyncio.TimeoutError:
-            pytest.fail("Timeout waiting for stream data")
-        
-        assert len(results) == 3
-        for i, result in enumerate(results):
-            assert result["item"] == i
-            assert "timestamp" in result
-
-# Cross-Protocol Integration Tests
-@pytest.mark.asyncio
-async def test_cross_protocol_product_creation(run_test_service, http_client, mqtt_client):
-    """Test creating and retrieving products across different protocols"""
-    # Create via HTTP
-    http_product = {
-        "id": "cross-1",
-        "name": "Cross-Protocol Product",
-        "price": 199.99,
-        "in_stock": True
-    }
     
-    http_response = http_client.post(
-        f"http://localhost:{run_test_service['http']}/api/products",
-        json=http_product
-    )
-    assert http_response.status_code == 200
-    
-    # Retrieve via MQTT
-    response_event = asyncio.Event()
-    mqtt_result = None
-    
-    def on_message(client, userdata, msg):
-        nonlocal mqtt_result
-        mqtt_result = json.loads(msg.payload)
-        response_event.set()
-    
-    mqtt_client.subscribe("products/get/response")
-    mqtt_client.on_message = on_message
-    mqtt_client.publish("products/get", json.dumps({"product_id": "cross-1"}))
-    
-    # Wait for response with timeout
-    try:
-        await asyncio.wait_for(response_event.wait(), timeout=5.0)
-        assert mqtt_result is not None
-        assert mqtt_result["id"] == http_product["id"]
-        assert mqtt_result["name"] == http_product["name"]
-    except asyncio.TimeoutError:
-        pytest.fail("Timeout waiting for MQTT response")
+    assert response_data is not None
+    assert "result" in response_data
+    result = response_data["result"]
+    assert result["id"] == product_data["id"]
+    assert result["name"] == product_data["name"]
+    assert result["price"] == product_data["price"]

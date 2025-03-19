@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from pifunc import service, run_services
 from dataclasses import dataclass
 from typing import Dict

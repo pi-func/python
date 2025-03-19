@@ -6,7 +6,9 @@ from typing import Any, Callable, Dict
 import asyncio
 import threading
 from pifunc.adapters import ProtocolAdapter
+import logging
 
+logger = logging.getLogger(__name__)
 
 class MQTTAdapter(ProtocolAdapter):
     """Adapter protokołu MQTT."""
@@ -15,6 +17,7 @@ class MQTTAdapter(ProtocolAdapter):
         self.client = mqtt.Client()
         self.functions = {}
         self.config = {}
+        self._started = False
 
     def setup(self, config: Dict[str, Any]) -> None:
         """Konfiguruje adapter MQTT."""
@@ -33,8 +36,12 @@ class MQTTAdapter(ProtocolAdapter):
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
 
-        # Łączymy się z brokerem
-        self.client.connect(broker, port, 60)
+        try:
+            # Łączymy się z brokerem
+            self.client.connect(broker, port, 60)
+        except Exception as e:
+            logger.error(f"Failed to connect to MQTT broker: {e}")
+            raise
 
     def register_function(self, func: Callable, metadata: Dict[str, Any]) -> None:
         """Rejestruje funkcję jako handler dla tematu MQTT."""
@@ -51,60 +58,131 @@ class MQTTAdapter(ProtocolAdapter):
         # Zapisujemy funkcję wraz z konfiguracją
         self.functions[topic] = {
             "function": func,
-            "qos": qos
+            "qos": qos,
+            "signature": inspect.signature(func)
         }
 
     def _on_connect(self, client, userdata, flags, rc):
         """Callback wywoływany po połączeniu z brokerem."""
-        print(f"Połączono z brokerem MQTT z kodem {rc}")
-
-        # Subskrybujemy wszystkie zarejestrowane tematy
-        for topic, config in self.functions.items():
-            client.subscribe(topic, config["qos"])
+        if rc == 0:
+            logger.info("Connected to MQTT broker")
+            # Subskrybujemy wszystkie zarejestrowane tematy
+            for topic, config in self.functions.items():
+                try:
+                    result, mid = client.subscribe(topic, config["qos"])
+                    if result != mqtt.MQTT_ERR_SUCCESS:
+                        logger.error(f"Failed to subscribe to topic {topic}: {result}")
+                except Exception as e:
+                    logger.error(f"Error subscribing to topic {topic}: {e}")
+        else:
+            logger.error(f"Failed to connect to MQTT broker with code {rc}")
 
     def _on_message(self, client, userdata, msg):
         """Callback wywoływany po otrzymaniu wiadomości."""
         topic = msg.topic
+        logger.debug(f"Received message on topic {topic}")
 
         # Sprawdzamy, czy mamy zarejestrowaną funkcję dla tego tematu
         if topic in self.functions:
             func_config = self.functions[topic]
             func = func_config["function"]
+            signature = func_config["signature"]
 
             try:
                 # Dekodujemy wiadomość jako JSON
-                payload = json.loads(msg.payload.decode())
+                try:
+                    payload = json.loads(msg.payload.decode())
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to decode JSON payload: {e}")
+                    self._publish_error(topic, f"Invalid JSON payload: {str(e)}")
+                    return
+
+                # Sprawdzamy i konwertujemy typy argumentów
+                kwargs = {}
+                for param_name, param in signature.parameters.items():
+                    if param_name in payload:
+                        try:
+                            if param.annotation != inspect.Parameter.empty:
+                                kwargs[param_name] = param.annotation(payload[param_name])
+                            else:
+                                kwargs[param_name] = payload[param_name]
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"Type conversion error for {param_name}: {e}")
+                            self._publish_error(topic, f"Invalid type for parameter {param_name}: {str(e)}")
+                            return
 
                 # Wywołujemy funkcję
-                result = func(**payload)
+                try:
+                    result = func(**kwargs)
+                except TypeError as e:
+                    logger.error(f"Function call error: {e}")
+                    self._publish_error(topic, f"Invalid parameters: {str(e)}")
+                    return
+                except Exception as e:
+                    logger.error(f"Function execution error: {e}")
+                    self._publish_error(topic, f"Internal error: {str(e)}")
+                    return
 
                 # Jeśli funkcja zwraca coroutine, uruchamiamy je w pętli asyncio
                 if asyncio.iscoroutine(result):
-                    # Tworzymy nową pętlę asyncio
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(result)
-                    loop.close()
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        result = loop.run_until_complete(result)
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"Async execution error: {e}")
+                        self._publish_error(topic, f"Async execution error: {str(e)}")
+                        return
 
                 # Publikujemy wynik
                 response_topic = f"{topic}/response"
-                self.client.publish(response_topic, json.dumps({"result": result}))
+                try:
+                    self.client.publish(response_topic, json.dumps({"result": result}))
+                    logger.debug(f"Published response to {response_topic}")
+                except Exception as e:
+                    logger.error(f"Failed to publish response: {e}")
 
             except Exception as e:
-                # Publikujemy błąd
-                error_topic = f"{topic}/error"
-                self.client.publish(error_topic, json.dumps({"error": str(e)}))
+                logger.error(f"Unexpected error processing message: {e}")
+                self._publish_error(topic, f"Unexpected error: {str(e)}")
+
+    def _publish_error(self, topic: str, error_message: str) -> None:
+        """Publikuje komunikat o błędzie."""
+        error_topic = f"{topic}/error"
+        try:
+            self.client.publish(error_topic, json.dumps({"error": error_message}))
+            logger.debug(f"Published error to {error_topic}: {error_message}")
+        except Exception as e:
+            logger.error(f"Failed to publish error message: {e}")
 
     def start(self) -> None:
         """Uruchamia klienta MQTT."""
-        # Uruchamiamy pętlę klienta w osobnym wątku
-        self.client.loop_start()
+        if self._started:
+            return
 
-        broker = self.config.get("broker", "localhost")
-        port = self.config.get("port", 1883)
-        print(f"Klient MQTT uruchomiony i połączony z {broker}:{port}")
+        try:
+            # Uruchamiamy pętlę klienta w osobnym wątku
+            self.client.loop_start()
+            self._started = True
+
+            broker = self.config.get("broker", "localhost")
+            port = self.config.get("port", 1883)
+            logger.info(f"MQTT client started and connected to {broker}:{port}")
+            print(f"Klient MQTT uruchomiony i połączony z {broker}:{port}")
+        except Exception as e:
+            logger.error(f"Failed to start MQTT client: {e}")
+            raise
 
     def stop(self) -> None:
         """Zatrzymuje klienta MQTT."""
-        self.client.loop_stop()
-        self.client.disconnect()
+        if not self._started:
+            return
+
+        try:
+            self.client.loop_stop()
+            self.client.disconnect()
+            self._started = False
+            logger.info("MQTT client stopped")
+        except Exception as e:
+            logger.error(f"Error stopping MQTT client: {e}")

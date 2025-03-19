@@ -7,6 +7,19 @@ import json
 from typing import Any, Callable, Dict, List
 import asyncio
 from pifunc.adapters import ProtocolAdapter
+import threading
+import socket
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+class UvicornServer(uvicorn.Server):
+    """Uvicorn server that can be started and stopped."""
+    
+    def install_signal_handlers(self):
+        """Override to disable signal handlers that interfere with testing."""
+        pass
 
 
 class HTTPAdapter(ProtocolAdapter):
@@ -16,6 +29,8 @@ class HTTPAdapter(ProtocolAdapter):
         self.app = FastAPI(title="pifunc API")
         self.server = None
         self.config = {}
+        self._started = False
+        self._server_thread = None
 
     def setup(self, config: Dict[str, Any]) -> None:
         """Konfiguruje adapter HTTP."""
@@ -46,25 +61,69 @@ class HTTPAdapter(ProtocolAdapter):
         # Dynamicznie dodajemy endpoint
         async def endpoint(request: Request):
             try:
-                # Pobieramy argumenty z body
+                kwargs = {}
+                # Pobieramy argumenty z body dla POST/PUT/PATCH
                 if method in ["POST", "PUT", "PATCH"]:
-                    body = await request.json()
-                    kwargs = body
+                    try:
+                        kwargs = await request.json()
+                    except json.JSONDecodeError as e:
+                        logger.error(f"JSON decode error: {e}")
+                        raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+
+                # Dla GET, pobieramy argumenty z path params i query params
                 else:
-                    # Dla GET, pobieramy argumenty z query params
-                    kwargs = dict(request.query_params)
+                    # Combine path params and query params
+                    kwargs.update(request.path_params)
+                    kwargs.update(request.query_params)
+
+                # Convert types if needed
+                sig = inspect.signature(func)
+                for param_name, param in sig.parameters.items():
+                    if param_name in kwargs:
+                        try:
+                            if param.annotation != inspect.Parameter.empty:
+                                kwargs[param_name] = param.annotation(kwargs[param_name])
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"Type conversion error for {param_name}: {e}")
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Invalid type for parameter {param_name}: {str(e)}"
+                            )
 
                 # Wywołujemy funkcję
-                result = func(**kwargs)
+                try:
+                    result = func(**kwargs)
+                except TypeError as e:
+                    logger.error(f"Function call error: {e}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid parameters: {str(e)}"
+                    )
+                except Exception as e:
+                    logger.error(f"Function execution error: {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Internal error: {str(e)}"
+                    )
 
                 # Jeśli funkcja zwraca coroutine, czekamy na wynik
                 if asyncio.iscoroutine(result):
-                    result = await result
+                    try:
+                        result = await result
+                    except Exception as e:
+                        logger.error(f"Async execution error: {e}")
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Async execution error: {str(e)}"
+                        )
 
                 # Zwracamy wynik
                 return {"result": result}
 
+            except HTTPException:
+                raise
             except Exception as e:
+                logger.error(f"Unexpected error: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         # Dodajemy endpoint do FastAPI
@@ -83,21 +142,46 @@ class HTTPAdapter(ProtocolAdapter):
 
     def start(self) -> None:
         """Uruchamia serwer HTTP."""
+        if self._started:
+            return
+
         port = self.config.get("port", 8080)
         host = self.config.get("host", "0.0.0.0")
 
-        # Uruchamiamy serwer w osobnym wątku
-        import threading
+        config = uvicorn.Config(
+            app=self.app,
+            host=host,
+            port=port,
+            log_level="error"
+        )
+        self.server = UvicornServer(config=config)
+
         def run_server():
-            uvicorn.run(self.app, host=host, port=port)
+            asyncio.run(self.server.serve())
 
-        self.server = threading.Thread(target=run_server, daemon=True)
-        self.server.start()
+        self._server_thread = threading.Thread(target=run_server, daemon=True)
+        self._server_thread.start()
 
-        print(f"Serwer HTTP uruchomiony na http://{host}:{port}")
+        # Wait for server to start
+        for _ in range(10):  # Try for 1 second
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect((host, port))
+                self._started = True
+                print(f"Serwer HTTP uruchomiony na http://{host}:{port}")
+                return
+            except (ConnectionRefusedError, socket.error):
+                time.sleep(0.1)
+        
+        raise RuntimeError("Failed to start HTTP server")
 
     def stop(self) -> None:
         """Zatrzymuje serwer HTTP."""
-        # FastAPI/Uvicorn nie ma prostej metody do zatrzymania serwera z zewnątrz
-        # W rzeczywistej implementacji należałoby użyć bardziej zaawansowanej metody
-        pass
+        if not self._started:
+            return
+
+        if self.server:
+            self.server.should_exit = True
+            if self._server_thread:
+                self._server_thread.join(timeout=1.0)
+            self._started = False

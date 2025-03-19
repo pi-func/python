@@ -171,10 +171,14 @@ def test_cors_headers(http_adapter):
         "cors_headers": ["*"]
     })
     
-    # Check if CORS middleware is in the middleware stack
-    middleware = adapter.app.middleware_stack
-    assert middleware is not None
-    # Verify CORS settings in the app state
+    # Check if CORS middleware is configured by checking the middleware list
+    cors_middleware = next(
+        (m for m in adapter.app.user_middleware if m.cls == CORSMiddleware),
+        None
+    )
+    assert cors_middleware is not None
+    
+    # Verify CORS settings in the adapter config
     assert adapter.config["cors"] is True
     assert adapter.config["cors_origins"] == ["*"]
     assert adapter.config["cors_methods"] == ["*"]
