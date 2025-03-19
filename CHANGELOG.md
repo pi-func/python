@@ -2,8 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.0] - 2025-03-19
-
 ## [0.1.2] - 2025-03-19
 
 ### Added
@@ -31,3 +29,13 @@ All notable changes to this project will be documented in this file.
 - Included detailed API documentation
 - Added contribution guidelines
 - Created example code snippets for common use cases
+
+### Testing
+- Added comprehensive test suite:
+  - CLI functionality tests
+  - Service decorator tests
+  - HTTP adapter tests
+  - Integration tests across protocols
+- Implemented test fixtures and utilities
+- Added async testing support
+- Added cross-protocol testing scenarios
