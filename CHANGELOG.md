@@ -2,9 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.5] - 2025-03-19
+## [0.1.6] - 2025-03-19
 
-## [0.1.5] - 2025-03-19
+## [0.1.6] - 2025-03-19
 
 ### Added
 - Changes in calculator/Dockerfile
@@ -14,6 +14,11 @@ All notable changes to this project will be documented in this file.
 - Changes in calculator/requirements.txt
 - Changes in calculator/service.py
 - Changes in calculator/static/index.html
+
+
+## [0.1.5] - 2025-03-19
+
+### Added
 - Changes in src/pifunc/example/README.md
 - Changes in src/pifunc/example/data_service/client.py
 - Changes in src/pifunc/example/data_service/docker-compose.yml

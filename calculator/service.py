@@ -3,7 +3,7 @@ Calculator example demonstrating multiple protocols with pifunc.
 """
 import os
 from typing import Dict, Union
-from pifunc import http, websocket
+from pifunc import http, websocket, run_services
 
 @http("/calculator")
 def serve_calculator() -> Dict[str, Union[str, bytes]]:
@@ -48,3 +48,9 @@ def divide(a: float, b: float) -> float:
 def subtract(a: float, b: float) -> float:
     """Subtract two numbers - available via both HTTP and WebSocket."""
     return a - b
+
+if __name__ == "__main__":
+    run_services(
+        http={"port": 8080},
+        websocket={"port": 8081}
+    )

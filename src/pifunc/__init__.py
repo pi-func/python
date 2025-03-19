@@ -3,21 +3,52 @@ pifunc - Generate directory structures from ASCII art or Markdown files.
 """
 
 from .cli import main
+from functools import wraps
 
-__version__ = "0.1.5"
-__all__ = ["service", "run_services", "load_module_from_file", "main"]
 
-# pifunc/__init__.py
+__version__ = "0.1.6"
+__all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket"]
+# Rejestr wszystkich zarejestrowanych funkcji
+_SERVICE_REGISTRY = {}
+
+
+# Import adapters
+from .adapters.http_adapter import HTTPAdapter
+from .adapters.websocket_adapter import WebSocketAdapter
 import inspect
 import sys
 import os
 import signal
 import importlib.util
 from typing import Any, Callable, Dict, List, Optional, Set, Type
-from functools import wraps
 
-# Rejestr wszystkich zarejestrowanych funkcji
-_SERVICE_REGISTRY = {}
+def http(path, method="GET"):
+    """HTTP route decorator."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        # Store HTTP configuration in function metadata
+        wrapper._pifunc_http = {
+            "path": path,
+            "method": method
+        }
+        return wrapper
+    return decorator
+
+def websocket(event):
+    """WebSocket event decorator."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        # Store WebSocket configuration in function metadata
+        wrapper._pifunc_websocket = {
+            "event": event
+        }
+        return wrapper
+    return decorator
+
 
 
 def service(

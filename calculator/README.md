@@ -45,6 +45,14 @@ python -m venv venv && source venv/bin/activate && pip install --upgrade pip && 
 ```
 
 ```bash
+sudo pip install --upgrade pip build twine
+pip install --upgrade pip build twine
+python -m build
+twine check dist/*
+twine upload dist/*
+```
+
+```bash
 python service.py
 ```
 
