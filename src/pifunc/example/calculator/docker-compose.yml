@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  calculator:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  # HTTP
+      - "8080:8080"  # WebSocket
+    volumes:
+      - ./:/app/calculator
+    command: ["python", "-m", "pifunc", "run", "calculator/service.py"]
+    environment:
+      - PIFUNC_HTTP_PORT=8000
+      - PIFUNC_WS_PORT=8080
+    depends_on:
+      - redis
+      - mqtt-broker
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"  # MQTT
+      - "9001:9001"  # MQTT over WebSocket
+
+  # Example client service that demonstrates different protocol usage
+  demo-client:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app/calculator
+    command: ["python", "-m", "pifunc", "run", "calculator/client.py"]
+    depends_on:
+      - calculator
+      - redis
+      - mqtt-broker
