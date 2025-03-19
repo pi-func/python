@@ -127,6 +127,31 @@ Aktualizacja
 pip install -e .
 ```
 
+## RESTART
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt && python3 -m pip install -e .
+```
+
+## Issue
+
+```bash
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements-dev.txt
+```            
+
+## TEST
+
+```bash
+python3 -m pip install requests-mock && python3 -m pytest tests/ -vv
+```
+
+```bash
+python3 -m pytest tests/ -v
+```
 
 ## Coding Standards
 

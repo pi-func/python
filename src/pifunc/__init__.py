@@ -82,13 +82,35 @@ def service(
         metadata["signature"][
             "return_annotation"] = signature.return_annotation if signature.return_annotation != inspect.Parameter.empty else None
 
-        # Dodajemy konfiguracje dla poszczególnych protokołów
+        # Validate and add protocol configurations
+        valid_http_keys = {"path", "method", "middleware"}
+        valid_mqtt_keys = {"topic", "qos"}
+        valid_websocket_keys = {"event"}
+        
         for protocol, config in protocol_configs.items():
-            if protocol in available_protocols:
-                metadata[protocol] = config
+            if protocol not in available_protocols:
+                continue
+                
+            if protocol == "http":
+                invalid_keys = set(config.keys()) - valid_http_keys
+                if invalid_keys:
+                    raise ValueError(f"Invalid HTTP configuration keys: {invalid_keys}")
+            elif protocol == "mqtt":
+                invalid_keys = set(config.keys()) - valid_mqtt_keys
+                if invalid_keys:
+                    raise ValueError(f"Invalid MQTT configuration keys: {invalid_keys}")
+            elif protocol == "websocket":
+                invalid_keys = set(config.keys()) - valid_websocket_keys
+                if invalid_keys:
+                    raise ValueError(f"Invalid WebSocket configuration keys: {invalid_keys}")
+                    
+            metadata[protocol] = config
 
         # Rejestrujemy funkcję w globalnym rejestrze
         _SERVICE_REGISTRY[service_name] = metadata
+        
+        # Ustawiamy atrybut _pifunc_service na dekorowanej funkcji
+        wrapper._pifunc_service = metadata
 
         return wrapper
 

@@ -107,23 +107,28 @@ def test_service_with_invalid_config():
         def add(a: int, b: int) -> int:
             return a + b
 
-def test_service_with_async_function():
+@pytest.mark.asyncio
+async def test_service_with_async_function():
     """Test service decorator with async function"""
-    import asyncio
+    test_data = []
     
     @service(
         http={"path": "/api/async", "method": "GET"}
     )
     async def async_function():
-        await asyncio.sleep(0.1)
+        # Instead of sleep, do actual async work
+        test_data.append("start")
+        await asyncio.sleep(0)  # Yield to event loop without delay
+        test_data.append("end")
         return "async result"
     
     config = getattr(async_function, '_pifunc_service')
     assert config['http']['path'] == '/api/async'
     
     # Run async function
-    result = asyncio.run(async_function())
+    result = await async_function()
     assert result == "async result"
+    assert test_data == ["start", "end"]  # Verify execution order
 
 def test_service_with_middleware():
     """Test service decorator with middleware configuration"""

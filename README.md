@@ -210,6 +210,58 @@ Comprehensive documentation is available at [https://www.pifunc.com/docs](https:
 - [Deployment Guide](https://www.pifunc.com/docs/deployment)
 - [Extending PIfunc](https://www.pifunc.com/docs/extending)
 
+## 🧪 Testing
+
+PIfunc includes a comprehensive test suite that ensures reliability across all supported protocols and features:
+
+### CLI Tests
+- Command-line interface functionality
+- Protocol-specific service calls
+- Error handling and edge cases
+- Help command documentation
+
+### Service Tests
+- Service decorator functionality
+- Protocol-specific configurations (HTTP, MQTT, WebSocket)
+- Complex data type handling
+- Async function support
+- Middleware integration
+
+### HTTP Adapter Tests
+- Route registration and handling
+- Parameter parsing (path, query, body)
+- Request/response processing
+- Error handling
+- CORS support
+- Middleware execution
+
+### Integration Tests
+- Cross-protocol communication
+- Real-world service scenarios
+- Data streaming capabilities
+- Multi-protocol support validation
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt && python3 -m pip install -e .
+```
+
+To run the tests:
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run all tests
+python -m pytest -v
+pytest
+
+# Run specific test categories
+pytest tests/test_cli.py
+pytest tests/test_service.py
+pytest tests/test_http_adapter.py
+pytest tests/test_integration.py
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
