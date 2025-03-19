@@ -8,9 +8,6 @@ COPY . .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the local package
-RUN pip install -e .
-
 # Expose ports for HTTP, WebSocket, and gRPC
 EXPOSE 8001 8081 50051
 

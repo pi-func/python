@@ -4,7 +4,7 @@ pifunc - Generate directory structures from ASCII art or Markdown files.
 
 from .cli import main
 
-__version__ = "0.1.5"
+__version__ = "0.1.0"
 __all__ = ["service", "run_services", "load_module_from_file", "main"]
 
 # pifunc/__init__.py

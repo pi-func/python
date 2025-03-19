@@ -4,11 +4,23 @@ import os
 import re
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict
+import re
+
+def get_version_from_changelog(file_path="CHANGELOG.md"):
+    with open(file_path, 'r') as file:
+        for line in file:
+            match = re.search(r'## \[(.*?)\]', line)
+            if match:
+                return match.group(1)
+    return None
+
 
 
 class ChangelogGenerator:
     def __init__(self):
-        self.version: str = "0.1.0"
+        version = get_version_from_changelog() or "0.1.0"
+        # print(version)
+        self.version: str = version
         self.changes: Dict[str, List[str]] = {
             "Added": [],
             "Changed": [],
