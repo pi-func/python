@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.0] - 2025-03-19
+## [0.1.4] - 2025-03-19
 
 ### Added
 - Changes in PROTOCOLS.md
@@ -17,19 +17,14 @@ All notable changes to this project will be documented in this file.
 - Changes in src/pifunc/example/network_operations.py
 - Changes in src/pifunc/example/protocol_math_functions.py
 - Changes in src/pifunc/example/string_functions.py
-
-### Changed
-- Changes in src/pifunc/example/clients_examples.py
-
-## [0.1.0] - 2025-03-19
-
-## [0.1.0] - 2025-03-19
-
-### Added
 - Changes in src/pifunc/adapters/amqp_adapter.py
 - Changes in src/pifunc/adapters/zeromq_adapter.py
 - Changes in src/pifunc/example/clients_examples.py
 - Changes in src/pifunc/example/multi_protocol_service.py
+
+### Changed
+- Changes in src/pifunc/example/clients_examples.py
+
 
 ## [0.1.3] - 2025-03-20
 
