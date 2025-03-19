@@ -53,7 +53,10 @@ def subtract(a: float, b: float) -> float:
     return a - b
 
 if __name__ == "__main__":
+    http_port = int(os.environ.get("PIFUNC_HTTP_PORT", 8002))
+    ws_port = int(os.environ.get("PIFUNC_WS_PORT", 8082))
+    
     run_services(
-        http={"port": 8090},
-        websocket={"port": 8091}
+        http={"port": http_port},
+        websocket={"port": ws_port}
     )

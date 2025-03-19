@@ -28,31 +28,51 @@ The calculator service provides:
   - Redis pub/sub integration
   - MQTT messaging
 
+
+```bash
+# Stop all running containers first
+docker stop $(docker ps -a -q)
+
+# Remove all containers
+docker rm $(docker ps -a -q)
+
+# Prune unused Docker resources
+docker system prune -a
+```
 ## Running the Example
 
 1. Start all services using Docker Compose:
    ```bash
-   docker-compose up
+   docker-compose up --build
    ```
 
 2. Access the web interface:
    - Open `http://localhost:8000/calculator` in your browser
 
+```bash
+docker-compose down --rmi all && docker-compose up --build
+```
 
+```bash
+cd calculator && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+```
 
 ```bash
 python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
 ```
 
-
 ```bash
-pkill -f "python service.py" && cd calculator && python service.py
+pkill -f "python service.py"; cd calculator; python service.py
 pkill -f "python service.py"
 python service.py
 ```
 
 ```bash
 python service.py
+```
+
+```bash
+pytest calculator/test_service.py -v
 ```
 
 ## Available Endpoints

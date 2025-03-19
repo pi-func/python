@@ -6,22 +6,11 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8002:8002"  # HTTP
+      - "8003:8002"  # HTTP
       - "8082:8082"  # WebSocket
     volumes:
-      - ./:/app/calculator
-    command: ["python", "-m", "pifunc", "run", "calculator/service.py"]
+      - .:/app
+    command: ["python", "service.py"]
     environment:
       - PIFUNC_HTTP_PORT=8002
       - PIFUNC_WS_PORT=8082
-
-  # Example client service that demonstrates different protocol usage
-  demo-client:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    volumes:
-      - ./:/app/calculator
-    command: ["python", "-m", "pifunc", "run", "calculator/client.py"]
-    depends_on:
-      - calculator

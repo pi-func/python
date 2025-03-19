@@ -2,13 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.6] - 2025-03-19
+## [0.1.7] - 2025-03-19
 
-## [0.1.6] - 2025-03-19
+### Added
+- Changes in Dockerfile
+- Changes in calculator/.env.example
+- Changes in calculator/test_http.sh
+- Changes in calculator/test_service.py
+
+### Changed
+- Changes in calculator/Dockerfile
+- Changes in calculator/README.md
+- Changes in calculator/docker-compose.yml
+- Changes in calculator/requirements.txt
+- Changes in calculator/service.py
+- Changes in calculator/static/index.html
+
+## [0.1.7] - 2025-03-19
+
+### Added
+- Changes in Dockerfile
+- Changes in calculator/.env.example
+- Changes in calculator/test_http.sh
+- Changes in calculator/test_service.py
+
+### Changed
+- Changes in calculator/Dockerfile
+- Changes in calculator/README.md
+- Changes in calculator/docker-compose.yml
+- Changes in calculator/requirements.txt
+- Changes in calculator/service.py
+- Changes in calculator/static/index.html
 
 ## [0.1.6] - 2025-03-19
 
 ### Added
+- Changes in calculator/.env.example
+- Changes in calculator/test_http.sh
+- Changes in calculator/test_service.py
 - Changes in calculator/Dockerfile
 - Changes in calculator/README.md
 - Changes in calculator/client.py

@@ -6,7 +6,7 @@ from .cli import main
 from functools import wraps
 
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 __all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket"]
 # Rejestr wszystkich zarejestrowanych funkcji
 _SERVICE_REGISTRY = {}
