@@ -1,11 +1,11 @@
 from pifunc import service, run_services
 
-@service()
+@service(http={"path": "/api/add"})
 def add(a: int, b: int) -> int:
     """Adds two numbers."""
     return a + b
 
-@service()
+@service(http={"path": "/api/subtract"})
 def subtract(a: int, b: int) -> int:
     """Subtracts b from a."""
     return a - b

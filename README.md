@@ -73,11 +73,8 @@ python calculator.py
 3. Call your functions via HTTP:
 
 ```bash
-
-^C
-sleep 2 && curl -X POST -H "Content-Type: application/json" -d '{"a": 5, "b": 3}' http://localhost:8080/api/__main__/add
-
-`curl -X POST http://localhost:8080/api/add -H "Content-Type: application/json" -d '{"a": 5, "b": 3}'`
+curl -X POST http://localhost:8080/api/add -H "Content-Type: application/json" -d '{"a": 5, "b": 3}'
+curl -X POST http://localhost:8080/api/subtract -H "Content-Type: application/json" -d '{"a": 5, "b": 3}'
 # {"result": 8}
 ```
 
@@ -86,6 +83,13 @@ sleep 2 && curl -X POST -H "Content-Type: application/json" -d '{"a": 5, "b": 3}
 ```bash
 pifunc call add --protocol http --args '{"a": 5, "b": 3}'
 # 8
+```
+
+
+## kill
+
+```bash
+pkill -f "python calculator.py" && python calculator.py
 ```
 
 ## ✨ Features
