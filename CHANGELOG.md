@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.0] - 2025-03-19
 
+## [0.1.0] - 2025-03-19
+
 ### Added
 - Changes in src/pifunc/adapters/amqp_adapter.py
 - Changes in src/pifunc/adapters/zeromq_adapter.py
