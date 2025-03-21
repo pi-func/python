@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.12] - 2025-03-21
+
+### Added
+- Changes in cron/product.py
+- Changes in src/pifunc/pifunc_client.py
+
 ## [0.1.11] - 2025-03-21
 
 ## [0.1.9] - 2025-03-21

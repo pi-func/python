@@ -10,14 +10,21 @@ from aiohttp import web
 from pifunc.adapters import ProtocolAdapter
 
 # Importy GraphQL
-import graphql
+try:
+    import graphql
 
-from graphql import (
-    GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString,
-    GraphQLInt, GraphQLFloat, GraphQLBoolean, GraphQLList,
-    GraphQLArgument, GraphQLNonNull, GraphQLInputObjectType,
-    GraphQLInputField, GraphQLScalarType, GraphQLEnumType
-)
+    from graphql import (
+        GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString,
+        GraphQLInt, GraphQLFloat, GraphQLBoolean, GraphQLList,
+        GraphQLArgument, GraphQLNonNull, GraphQLInputObjectType,
+        GraphQLInputField, GraphQLScalarType, GraphQLEnumType
+    )
+
+    _graphql_available = True
+except ImportError:
+    # Tworzymy mock dla GraphQL, jeśli biblioteka nie jest dostępna
+    _graphql_available = False
+    print("Warning: GraphQL library not available. GraphQL adapter will be disabled.")
 
 
 class GraphQLAdapter(ProtocolAdapter):
@@ -32,6 +39,10 @@ class GraphQLAdapter(ProtocolAdapter):
         self.runner = None
         self.site = None
         self.server_thread = None
+        self._connected = _graphql_available
+
+        if not _graphql_available:
+            return
 
         # Przechowujemy zarejestrowane typy
         self.registered_types = {
@@ -48,9 +59,22 @@ class GraphQLAdapter(ProtocolAdapter):
     def setup(self, config: Dict[str, Any]) -> None:
         """Konfiguruje adapter GraphQL."""
         self.config = config
+        # Dodajemy flagę wymuszania połączenia
+        self.force_connection = config.get("force_connection", False)
+
+        if not _graphql_available and self.force_connection:
+            raise ImportError("GraphQL library is required but not available.")
+
+        if not _graphql_available:
+            self._connected = False
+            return
 
     def register_function(self, func: Callable, metadata: Dict[str, Any]) -> None:
         """Rejestruje funkcję jako pole GraphQL."""
+        if not self._connected:
+            print(f"Not connected to GraphQL, skipping registration of {func.__name__}")
+            return
+
         service_name = metadata.get("name", func.__name__)
 
         # Pobieramy konfigurację GraphQL
@@ -74,22 +98,40 @@ class GraphQLAdapter(ProtocolAdapter):
                 # Argument wymagany
                 graphql_type = GraphQLNonNull(graphql_type)
 
-            args[param_name] = GraphQLArgument(
-                type=graphql_type,
-                description=f"Argument {param_name}"
-            )
+            # Używamy type_ zamiast type, ponieważ type jest zarezerwowanym słowem kluczowym w Pythonie
+            # i nowsze wersje GraphQL używają tego parametru
+            try:
+                args[param_name] = GraphQLArgument(
+                    type_=graphql_type,
+                    description=f"Argument {param_name}"
+                )
+            except TypeError:
+                # Próbujemy ze starszym API jeśli nie działa
+                args[param_name] = GraphQLArgument(
+                    type=graphql_type,
+                    description=f"Argument {param_name}"
+                )
 
         # Pobieramy typ zwracany
         return_type = signature.return_annotation if signature.return_annotation != inspect.Parameter.empty else None
         return_graphql_type = self._get_graphql_type(return_type)
 
         # Tworzymy pole GraphQL
-        field = GraphQLField(
-            type=return_graphql_type,
-            args=args,
-            resolve=lambda obj, info, **kwargs: self._resolve_field(func, kwargs),
-            description=description
-        )
+        try:
+            field = GraphQLField(
+                type_=return_graphql_type,
+                args=args,
+                resolve=lambda obj, info, **kwargs: self._resolve_field(func, kwargs),
+                description=description
+            )
+        except TypeError:
+            # Próbujemy ze starszym API jeśli nie działa
+            field = GraphQLField(
+                type=return_graphql_type,
+                args=args,
+                resolve=lambda obj, info, **kwargs: self._resolve_field(func, kwargs),
+                description=description
+            )
 
         # Zapisujemy pole w odpowiedniej kolekcji
         if is_mutation:
@@ -99,6 +141,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     def _get_graphql_type(self, python_type) -> Any:
         """Konwertuje typ Pythona na typ GraphQL."""
+        if not self._connected:
+            return None
+
         # Sprawdzamy, czy typ jest już zarejestrowany
         if python_type in self.registered_types:
             return self.registered_types[python_type]
@@ -125,10 +170,17 @@ class GraphQLAdapter(ProtocolAdapter):
             # Tworzymy nowy typ wyjściowy
             fields = {}
             for field_name, field_type in get_type_hints(python_type).items():
-                fields[field_name] = GraphQLField(
-                    type=self._get_graphql_type(field_type),
-                    description=f"Field {field_name}"
-                )
+                try:
+                    fields[field_name] = GraphQLField(
+                        type_=self._get_graphql_type(field_type),
+                        description=f"Field {field_name}"
+                    )
+                except TypeError:
+                    # Próbujemy ze starszym API jeśli nie działa
+                    fields[field_name] = GraphQLField(
+                        type=self._get_graphql_type(field_type),
+                        description=f"Field {field_name}"
+                    )
 
             output_type = GraphQLObjectType(
                 name=python_type.__name__,
@@ -142,10 +194,17 @@ class GraphQLAdapter(ProtocolAdapter):
             # Tworzymy typ wejściowy
             input_fields = {}
             for field_name, field_type in get_type_hints(python_type).items():
-                input_fields[field_name] = GraphQLInputField(
-                    type=self._get_graphql_type(field_type),
-                    description=f"Input field {field_name}"
-                )
+                try:
+                    input_fields[field_name] = GraphQLInputField(
+                        type_=self._get_graphql_type(field_type),
+                        description=f"Input field {field_name}"
+                    )
+                except TypeError:
+                    # Próbujemy ze starszym API jeśli nie działa
+                    input_fields[field_name] = GraphQLInputField(
+                        type=self._get_graphql_type(field_type),
+                        description=f"Input field {field_name}"
+                    )
 
             input_type = GraphQLInputObjectType(
                 name=f"{python_type.__name__}Input",
@@ -163,6 +222,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     def _resolve_field(self, func: Callable, kwargs: Dict[str, Any]) -> Any:
         """Wykonuje funkcję i zwraca wynik dla pola GraphQL."""
+        if not self._connected:
+            return None
+
         try:
             # Wywołujemy funkcję
             result = func(**kwargs)
@@ -183,6 +245,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     def _build_schema(self) -> GraphQLSchema:
         """Buduje schemat GraphQL na podstawie zarejestrowanych funkcji."""
+        if not self._connected:
+            return None
+
         # Tworzymy typ Query
         query_type = None
         if self.query_fields:
@@ -209,6 +274,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     async def _handle_graphql_request(self, request):
         """Obsługuje żądanie GraphQL."""
+        if not self._connected:
+            return web.json_response({"errors": [{"message": "GraphQL service is not available"}]}, status=503)
+
         # Pobieramy dane żądania
         if request.method == "POST":
             data = await request.json()
@@ -244,6 +312,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     async def _handle_graphiql_request(self, request):
         """Obsługuje żądanie GraphiQL (interfejs przeglądarkowy)."""
+        if not self._connected:
+            return web.Response(text="GraphQL service is not available", status=503)
+
         graphiql_html = """
         <!DOCTYPE html>
         <html>
@@ -284,6 +355,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     async def _run_server(self):
         """Uruchamia serwer GraphQL."""
+        if not self._connected:
+            return
+
         host = self.config.get("host", "0.0.0.0")
         port = self.config.get("port", 8082)
         playground = self.config.get("playground", True)
@@ -312,6 +386,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     def _server_thread_func(self):
         """Funkcja wątku serwera."""
+        if not self._connected:
+            return
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
@@ -325,6 +402,10 @@ class GraphQLAdapter(ProtocolAdapter):
 
     def start(self) -> None:
         """Uruchamia serwer GraphQL."""
+        if not self._connected:
+            print("GraphQL adapter not connected, skipping start")
+            return
+
         # Budujemy schemat
         self.schema = self._build_schema()
 
@@ -335,6 +416,9 @@ class GraphQLAdapter(ProtocolAdapter):
 
     def stop(self) -> None:
         """Zatrzymuje serwer GraphQL."""
+        if not self._connected:
+            return
+
         # Zatrzymujemy serwer
         if self.site and self.runner:
             loop = asyncio.new_event_loop()

@@ -78,6 +78,82 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
+
+
+## 🧪 Testing
+
+PIfunc includes a comprehensive test suite that ensures reliability across all supported protocols and features:
+
+### CLI Tests
+- Command-line interface functionality
+- Protocol-specific service calls
+- Error handling and edge cases
+- Help command documentation
+
+### Service Tests
+- Service decorator functionality
+- Protocol-specific configurations (HTTP, MQTT, WebSocket)
+- Complex data type handling
+- Async function support
+- Middleware integration
+
+### HTTP Adapter Tests
+- Route registration and handling
+- Parameter parsing (path, query, body)
+- Request/response processing
+- Error handling
+- CORS support
+- Middleware execution
+
+### Integration Tests
+- Cross-protocol communication
+- Real-world service scenarios
+- Data streaming capabilities
+- Multi-protocol support validation
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt && python -m pip install -e .
+# Logs will show:
+# - Incoming request/message details
+# - Parameter conversion steps
+# - Function execution details
+# - Response/publication details
+# - Any errors or issues that occur
+```
+
+To run the tests:
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run all tests
+python -m pytest -v
+pytest
+
+# Run specific test categories
+pytest tests/test_cli.py
+pytest tests/test_service.py
+pytest tests/test_http_adapter.py
+pytest tests/test_integration.py
+```
+
+
+## PUBLISH
+
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
+```
+
+```bash
+sudo pip install --upgrade pip build twine
+pip install --upgrade pip build twine
+python -m build
+twine check dist/*
+twine upload dist/*
+```
+
 ## Running Tests
 
 ```bash

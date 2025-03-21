@@ -1,8 +1,23 @@
+# src/pifunc/__init__.py
 """
 pifunc - Generate directory structures from ASCII art or Markdown files.
 """
 
-from .cli import main
+#from .cli import main
+# Próbujemy zaimportować klienta, jeśli nie ma go, tworzymy stub
+try:
+    from pifunc_client import PiFuncClient
+except ImportError:
+    # Tworzymy prosty stub klienta jako workaround
+    class PiFuncClient:
+        def __init__(self, base_url="", protocol=""):
+            self.base_url = base_url
+            self.protocol = protocol
+
+        def call(self, service_name, args=None, **kwargs):
+            print(f"Warning: PiFuncClient stub called for {service_name}")
+            return {}
+
 from functools import wraps
 # Import adapters
 from .adapters.http_adapter import HTTPAdapter
@@ -23,7 +38,7 @@ import importlib.util
 from typing import Any, Callable, Dict, List, Optional, Set, Type
 
 __version__ = "0.1.11"
-__all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
+__all__ = ["service", "run_services", "load_module_from_file", "pifunc_client", "PiFuncClient", "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
 
 # Rejestr wszystkich zarejestrowanych funkcji
 _SERVICE_REGISTRY = {}

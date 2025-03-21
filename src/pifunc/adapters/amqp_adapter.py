@@ -8,6 +8,9 @@ from typing import Any, Callable, Dict, List, Optional
 import pika
 from pika.exchange_type import ExchangeType
 from pifunc.adapters import ProtocolAdapter
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AMQPAdapter(ProtocolAdapter):
@@ -20,6 +23,7 @@ class AMQPAdapter(ProtocolAdapter):
         self.config = {}
         self.consuming = False
         self.consumer_thread = None
+        self._connected = False
 
     def setup(self, config: Dict[str, Any]) -> None:
         """Konfiguruje adapter AMQP."""
@@ -31,6 +35,8 @@ class AMQPAdapter(ProtocolAdapter):
         virtual_host = config.get("virtual_host", "/")
         username = config.get("username", "guest")
         password = config.get("password", "guest")
+        # Dodajemy flagę wymuszania połączenia
+        self.force_connection = config.get("force_connection", False)
 
         # Tworzymy parametry połączenia
         credentials = pika.PlainCredentials(username, password)
@@ -42,8 +48,32 @@ class AMQPAdapter(ProtocolAdapter):
             heartbeat=60
         )
 
-        # Tworzymy połączenie
-        self.connection = pika.BlockingConnection(parameters)
+        try:
+            # Tworzymy połączenie tylko jeśli wymuszono połączenie
+            if self.force_connection:
+                self.connection = pika.BlockingConnection(parameters)
+                self._connected = True
+            else:
+                # Próbujemy się połączyć, ale ignorujemy błędy
+                try:
+                    self.connection = pika.BlockingConnection(parameters)
+                    self._connected = True
+                except Exception as e:
+                    logger.warning(f"Failed to connect to AMQP broker: {e}")
+                    print(f"Warning: AMQP broker not available at {host}:{port}")
+                    print("AMQP features will be disabled. Set force_connection=True to require AMQP connection.")
+                    self._connected = False
+                    return
+        except Exception as e:
+            if self.force_connection:
+                logger.error(f"Failed to connect to AMQP broker: {e}")
+                raise
+            else:
+                logger.warning(f"Failed to connect to AMQP broker: {e}")
+                print(f"Warning: AMQP broker not available at {host}:{port}")
+                print("AMQP features will be disabled. Set force_connection=True to require AMQP connection.")
+                self._connected = False
+                return
 
         # Tworzymy kanał
         self.channel = self.connection.channel()
@@ -58,6 +88,11 @@ class AMQPAdapter(ProtocolAdapter):
 
     def register_function(self, func: Callable, metadata: Dict[str, Any]) -> None:
         """Rejestruje funkcję jako konsumenta kolejki AMQP."""
+        # Jeśli nie jesteśmy połączeni z brokerem, to nie rejestrujemy funkcji
+        if not self._connected:
+            logger.warning(f"Not connected to AMQP broker, skipping registration of {func.__name__}")
+            return
+
         service_name = metadata.get("name", func.__name__)
 
         # Pobieramy konfigurację AMQP
@@ -139,7 +174,7 @@ class AMQPAdapter(ProtocolAdapter):
                 break
 
         if not target_function or not function_info:
-            print(f"Brak zarejestrowanej funkcji dla routing key: {routing_key}")
+            logger.warning(f"No registered function for routing key: {routing_key}")
             # Potwierdzamy odbiór wiadomości, ale nie przetwarzamy jej
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
@@ -196,7 +231,7 @@ class AMQPAdapter(ProtocolAdapter):
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except json.JSONDecodeError:
-            print(f"Błąd parsowania JSON: {body}")
+            logger.error(f"JSON parsing error: {body}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             # Publikujemy informację o błędzie
@@ -221,10 +256,13 @@ class AMQPAdapter(ProtocolAdapter):
 
             # Potwierdzamy przetworzenie wiadomości (z błędem)
             ch.basic_ack(delivery_tag=method.delivery_tag)
-            print(f"Błąd podczas przetwarzania wiadomości: {e}")
+            logger.error(f"Error processing message: {e}")
 
     def _consume_messages(self):
         """Funkcja wątku konsumującego wiadomości."""
+        if not self._connected:
+            return
+
         # Konfigurujemy prefetch (ile wiadomości na raz)
         prefetch_count = self.config.get("prefetch_count", 1)
         self.channel.basic_qos(prefetch_count=prefetch_count)
@@ -241,9 +279,11 @@ class AMQPAdapter(ProtocolAdapter):
 
         try:
             # Rozpoczynamy konsumpcję wiadomości (blokujące)
+            logger.info(f"Started consuming messages from {len(self.functions)} queues")
             print(f"Rozpoczęto konsumpcję wiadomości z {len(self.functions)} kolejek")
             self.channel.start_consuming()
         except Exception as e:
+            logger.error(f"Error consuming messages: {e}")
             print(f"Błąd podczas konsumpcji wiadomości: {e}")
         finally:
             try:
@@ -253,7 +293,7 @@ class AMQPAdapter(ProtocolAdapter):
 
     def start(self) -> None:
         """Uruchamia adapter AMQP."""
-        if self.consuming:
+        if self.consuming or not self._connected:
             return
 
         # Zakładamy wątek konsumpcji
@@ -264,11 +304,12 @@ class AMQPAdapter(ProtocolAdapter):
 
         host = self.config.get("host", "localhost")
         port = self.config.get("port", 5672)
+        logger.info(f"AMQP adapter started and connected to {host}:{port}")
         print(f"Adapter AMQP uruchomiony i połączony z {host}:{port}")
 
     def stop(self) -> None:
         """Zatrzymuje adapter AMQP."""
-        if not self.consuming:
+        if not self.consuming or not self._connected:
             return
 
         self.consuming = False
@@ -289,4 +330,5 @@ class AMQPAdapter(ProtocolAdapter):
         except:
             pass
 
+        logger.info("AMQP adapter stopped")
         print("Adapter AMQP zatrzymany")
