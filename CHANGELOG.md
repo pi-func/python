@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.8] - 2025-03-21
 
+### Added
+
+- Changes in mqtt/mqtt.py
+- Changes in zeromq/CHANGELOG.md
+- Changes in zeromq/README.md
+- Changes in zeromq/changelog.py
+- Changes in zeromq/checker.sh
+- Changes in zeromq/service.py
+- Changes in zeromq/test.sh
+
 ## [0.1.7] - 2025-03-19
 
 ### Added
