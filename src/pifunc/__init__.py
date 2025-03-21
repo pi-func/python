@@ -15,7 +15,7 @@ from .adapters.graphql_adapter import GraphQLAdapter
 from .adapters.amqp_adapter import AMQPAdapter
 
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 __all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket", "grpc",  "mqtt", "zeromq", "redis", "amqp"]
 # Rejestr wszystkich zarejestrowanych funkcji
 _SERVICE_REGISTRY = {}
