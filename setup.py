@@ -5,9 +5,15 @@ from setuptools import setup, find_packages
 
 setup(
     name="pifunc",
-    version="0.1.14",
+    version="0.1.16",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    description="Protocol Interface Functions",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
+    author="PIfunc Team",
+    author_email="info@pifunc.com",
+    url="https://github.com/pi-func/python",
     install_requires=[
         "aiohttp>=3.8.0",
         "websockets>=10.0",
@@ -25,5 +31,40 @@ setup(
         "grpcio>=1.62.0",
         "grpcio-tools>=1.62.0",
     ],
+    extras_require={
+        "full": [
+            "grpcio>=1.40.0",
+            "paho-mqtt>=1.6.1",
+            "pyzmq>=22.2.1",
+            "redis>=4.0.2",
+            "pika>=1.2.0",
+            "graphql-core>=3.2.0",
+            "schedule>=1.1.0",
+        ],
+        "dev": [
+            "pytest>=6.2.5",
+            "pytest-cov>=2.12.1",
+            "black>=21.8b0",
+            "isort>=5.9.3",
+            "flake8>=3.9.2",
+            "mypy>=0.910",
+        ],
+    },
+    entry_points={
+        "console_scripts": [
+            "pifunc=pifunc.cli:main",
+        ],
+    },
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ],
     python_requires=">=3.11",
+
 )

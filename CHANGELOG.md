@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.16] - 2025-03-21
+
+### Added
+- Changes in calculator3.py
+
+## [0.1.15] - 2025-03-21
+
 ## [0.1.14] - 2025-03-21
 
 ### Added

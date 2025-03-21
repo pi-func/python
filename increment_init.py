@@ -1,31 +1,37 @@
 #!/usr/bin/env python3
 """
-A script to increment the version in setup.py file using semantic versioning.
+A script to increment the version in __init__.py file using semantic versioning.
 """
 import re
 import argparse
 import os
+import sys
 
+
+# Usage examples:
 # Default: increment patch version (0.1.8 → 0.1.9)
-#./increment.py
+# ./increment_init.py
 
 # Increment minor version (0.1.8 → 0.2.0)
-#./increment.py -t minor
+# ./increment_init.py -t minor
 
 # Increment major version (0.1.8 → 1.0.0)
-#./increment.py -t major
+# ./increment_init.py -t major
 
 # Create a prerelease (0.1.8 → 0.1.8-alpha.1)
-#./increment.py -t prealpha
+# ./increment_init.py -t prealpha
 
-#./increment.py -f /path/to/setup.py
+# Specify a custom file path
+# ./increment_init.py -f src/pifunc/__init__.py
 
-def get_version_from_setup(file_path="setup.py"):
-    """Extract the current version from setup.py file."""
+
+def get_version_from_init(file_path):
+    """Extract the current version from __init__.py file."""
     try:
         with open(file_path, 'r') as file:
             content = file.read()
-            version_match = re.search(r'version="([^"]+)"', content)
+            # Look for __version__ = "x.y.z" pattern
+            version_match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
             if version_match:
                 return version_match.group(1)
     except FileNotFoundError:
@@ -50,8 +56,6 @@ def increment_version(current_version, increment_type="patch"):
     """
     if not current_version:
         return "0.1.0"  # Default starting version
-
-    # print(current_version)
 
     # Parse version components
     match = re.match(r'^(\d+)\.(\d+)\.(\d+)(-([a-zA-Z0-9.-]+))?(\+([a-zA-Z0-9.-]+))?$', current_version)
@@ -103,12 +107,29 @@ def increment_version(current_version, increment_type="patch"):
     return new_version
 
 
-def update_version_in_setup(file_path="setup.py", increment_type="patch", backup=True):
+def find_init_file(start_dir="."):
     """
-    Update the version in setup.py file.
+    Find __init__.py files recursively starting from a directory.
+    Returns a list of found files.
+    """
+    init_files = []
+
+    for root, dirs, files in os.walk(start_dir):
+        if "__init__.py" in files:
+            init_path = os.path.join(root, "__init__.py")
+            # Check if it contains a version
+            if get_version_from_init(init_path):
+                init_files.append(init_path)
+
+    return init_files
+
+
+def update_version_in_init(file_path, increment_type="patch", backup=True):
+    """
+    Update the version in __init__.py file.
 
     Args:
-        file_path: Path to setup.py file
+        file_path: Path to __init__.py file
         increment_type: The part of the version to increment
         backup: Whether to create a backup of the original file
 
@@ -117,13 +138,12 @@ def update_version_in_setup(file_path="setup.py", increment_type="patch", backup
     """
     try:
         # Get current version
-        current_version = get_version_from_setup(file_path)
+        current_version = get_version_from_init(file_path)
         if not current_version:
-            return False, "Could not find version in setup.py", None
+            return False, f"Could not find version in {file_path}", None
 
         # Increment version
         new_version = increment_version(current_version, increment_type)
-        # print(new_version)
 
         # Read file content
         with open(file_path, 'r') as file:
@@ -135,16 +155,16 @@ def update_version_in_setup(file_path="setup.py", increment_type="patch", backup
             with open(backup_file, 'w') as file:
                 file.write(content)
 
-        # Instead of using re.sub with backreferences, use a simpler approach
-        pattern = f'version="{current_version}"'
-        replacement = f'version="{new_version}"'
-        new_content = content.replace(pattern, replacement)
+        # Replace version in file
+        pattern = r'(__version__\s*=\s*["\'])([^"\']+)(["\'])'
+        replacement = r'\g<1>' + new_version + r'\g<3>'
+        new_content = re.sub(pattern, replacement, content)
 
         # Write updated content back to file
         with open(file_path, 'w') as file:
             file.write(new_content)
 
-        return True, f"Version updated from {current_version} to {new_version}", new_version
+        return True, f"Version in {os.path.basename(file_path)} updated from {current_version} to {new_version}", new_version
 
     except Exception as e:
         return False, f"Error updating version: {e}", None
@@ -152,7 +172,7 @@ def update_version_in_setup(file_path="setup.py", increment_type="patch", backup
 
 def main():
     """Parse command line arguments and update version."""
-    parser = argparse.ArgumentParser(description="Increment version in setup.py file")
+    parser = argparse.ArgumentParser(description="Increment version in __init__.py file")
 
     parser.add_argument(
         "-t", "--type",
@@ -163,8 +183,7 @@ def main():
 
     parser.add_argument(
         "-f", "--file",
-        default="setup.py",
-        help="Path to setup.py file (default: setup.py)"
+        help="Path to __init__.py file (if not specified, will search recursively)"
     )
 
     parser.add_argument(
@@ -175,21 +194,69 @@ def main():
 
     args = parser.parse_args()
 
-    # Update version
-    success, message, new_version = update_version_in_setup(
-        file_path=args.file,
-        increment_type=args.type,
-        backup=not args.no_backup
-    )
-
-    # Print result
-    if success:
-        print(f"✅ {message}")
+    # If file path is provided, use it
+    if args.file:
+        file_paths = [args.file]
     else:
-        print(f"❌ {message}")
+        # Otherwise search for __init__.py files
+        file_paths = find_init_file()
 
-    return 0 if success else 1
+        if not file_paths:
+            print("❌ No __init__.py files with version information found.")
+            return 1
+
+        if len(file_paths) > 1:
+            print("Multiple __init__.py files with version information found:")
+            for i, path in enumerate(file_paths, 1):
+                print(f"{i}. {path} (version: {get_version_from_init(path)})")
+
+            try:
+                choice = input("Enter the number of the file to update (or 'a' for all): ")
+                if choice.lower() == 'a':
+                    pass  # Keep all files
+                else:
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(file_paths):
+                        file_paths = [file_paths[idx]]
+                    else:
+                        print("Invalid selection.")
+                        return 1
+            except (ValueError, IndexError):
+                print("Invalid selection.")
+                return 1
+
+    all_success = True
+    updated_versions = []
+
+    # Update each file
+    for file_path in file_paths:
+        success, message, new_version = update_version_in_init(
+            file_path=file_path,
+            increment_type=args.type,
+            backup=not args.no_backup
+        )
+
+        # Print result
+        if success:
+            print(f"✅ {message}")
+            updated_versions.append((file_path, new_version))
+        else:
+            print(f"❌ {message}")
+            all_success = False
+
+    # Summary if multiple files were updated
+    if len(updated_versions) > 1:
+        print("\nSummary of updates:")
+        for file_path, version in updated_versions:
+            print(f"  • {file_path}: {version}")
+
+    return 0 if all_success else 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
+
+
+# python increment_init.py -f src/pifunc/__init__.py
+# python increment_setup.py
+# python changelog.py
