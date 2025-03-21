@@ -1,12 +1,15 @@
 import os
 from pifunc import service, run_services
-from dotenv import load_dotenv  # If needed
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("dotenv not installed, using default environment variables")
 
 # Get configuration from environment variables with defaults
 API_HOST = os.getenv("API_HOST", "localhost")
-API_PORT = int(os.getenv("API_PORT", 8081))
+API_PORT = int(os.getenv("API_PORT", 8080))
 
 
 @service(http={"path": "/api/add"})

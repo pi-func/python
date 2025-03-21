@@ -77,6 +77,7 @@ Now your function is accessible via:
 
 ![img.png](img.png)
 
+![img_1.png](img_1.png)
 
 This demonstrates the power of PIfunc's protocol-agnostic approach - the same function can be exposed via multiple protocols, and clients can interact with services seamlessly across protocol boundaries,
 demonstrates protocol filtering, client-service communication with CRON scheduling, and the API landing page:
