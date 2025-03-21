@@ -11,6 +11,7 @@ from pifunc.adapters import ProtocolAdapter
 
 # Importy GraphQL
 import graphql
+
 from graphql import (
     GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString,
     GraphQLInt, GraphQLFloat, GraphQLBoolean, GraphQLList,

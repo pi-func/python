@@ -2,6 +2,72 @@
 
 PIfunc revolutionizes how you build networked applications by letting you **write your function once** and expose it via **multiple communication protocols simultaneously**. No duplicate code. No inconsistencies. Just clean, maintainable, protocol-agnostic code.
 
+<div align="center">
+  <h3>One function, every protocol. Everywhere.</h3>
+</div>
+
+## 🚀 Installation
+
+```bash
+pip install pifunc
+```
+
+## 📚 Quick Start
+
+```python
+from pifunc import service, run_services
+
+@service(
+    http={"path": "/api/add", "method": "POST"},
+    websocket={"event": "math.add"},
+    grpc={}
+)
+def add(a: int, b: int) -> int:
+    """Add two numbers together."""
+    return a + b
+
+if __name__ == "__main__":
+    run_services(
+        http={"port": 8080},
+        websocket={"port": 8081},
+        grpc={"port": 50051},
+        watch=True  # Auto-reload on code changes
+    )
+```
+
+Now your function is accessible via:
+- HTTP: `POST /api/add` with JSON body `{"a": 5, "b": 3}`
+- WebSocket: Send event `math.add` with payload `{"a": 5, "b": 3}`
+- gRPC: Call the `add` method with parameters `a=5, b=3`
+
+## 🔌 Supported Protocols
+
+| Protocol | Description | Best For |
+|----------|-------------|----------|
+| **HTTP/REST** | RESTful API with JSON | Web clients, general API access |
+| **gRPC** | High-performance RPC | Microservices, performance-critical systems |
+| **MQTT** | Lightweight pub/sub | IoT devices, mobile apps |
+| **WebSocket** | Bidirectional comms | Real-time applications, chat |
+| **GraphQL** | Query language | Flexible data requirements |
+| **ZeroMQ** | Distributed messaging | High-throughput, low-latency systems |
+| **AMQP** | Advanced Message Queuing | Enterprise messaging, reliable delivery |
+| **Redis** | In-memory data structure | Caching, pub/sub, messaging |
+| **CRON** | Scheduled tasks | Periodic jobs, background tasks |
+
+## ✨ Features
+
+- **Multi-Protocol Support**: Expose functions via multiple protocols at once
+- **Zero Boilerplate**: Single decorator approach with sensible defaults
+- **Type Safety**: Automatic type validation and conversion
+- **Hot Reload**: Instant updates during development
+- **Protocol-Specific Configurations**: Fine-tune each protocol interface
+- **Automatic Documentation**: OpenAPI, gRPC reflection, and GraphQL introspection
+- **Client Integration**: Built-in client with `@client` decorator for inter-service communication
+- **Scheduled Tasks**: CRON-like scheduling with `cron` protocol
+- **Serverless Deployment**: Support for AWS Lambda, Google Cloud Functions, and Azure Functions
+- **Comprehensive CLI**: Manage and test your services with ease
+- **Monitoring & Health Checks**: Built-in observability
+- **Enterprise-Ready**: Authentication, authorization, and middleware support
 
 ## 📚 Examples
 
@@ -24,53 +90,64 @@ def create_product(product: dict) -> dict:
         "price": product["price"],
         "in_stock": product.get("in_stock", True)
     }
-
-# Call via HTTP:
-# POST /api/products
-# {"product": {"id": "123", "name": "Widget", "price": 99.99}}
-
-# Call via MQTT:
-# Topic: products/create
-# Payload: {"product": {"id": "123", "name": "Widget", "price": 99.99}}
 ```
 
-4. Or use the CLI:
+### Client-Server Pattern
 
-```bash
-pifunc call add --protocol http --args '{"a": 5, "b": 3}'
-# 8
+```python
+from pifunc import service, client, run_services
+import random
+
+# Server-side service
+@service(
+    http={"path": "/api/products", "method": "POST"}
+)
+def create_product(product: dict) -> dict:
+    """Create a new product."""
+    return {
+        "id": product["id"],
+        "name": product["name"],
+        "price": product["price"],
+        "created": True
+    }
+
+# Client-side function with scheduled execution
+@client(
+    http={"path": "/api/products", "method": "POST"}
+)
+@service(
+    cron={"interval": "1h"}  # Run every hour
+)
+def generate_product() -> dict:
+    """Generate a random product and send it to the create_product service."""
+    return {
+        "id": f"PROD-{random.randint(1000, 9999)}",
+        "name": f"Automated Product {random.randint(1, 100)}",
+        "price": round(random.uniform(10.0, 100.0), 2)
+    }
+
+if __name__ == "__main__":
+    run_services(
+        http={"port": 8080},
+        cron={"check_interval": 1},
+        watch=True
+    )
 ```
 
+### Serverless Functions
 
-## kill
+```python
+from pifunc import service
 
-```bash
-pkill -f "python calculator.py" && python calculator.py
+@service(
+    lambda={"memory": 128, "timeout": 30},
+    http={"path": "/api/process", "method": "POST"}
+)
+def process_data(data: dict) -> dict:
+    """Process data in AWS Lambda or locally via HTTP."""
+    result = perform_calculation(data)
+    return {"result": result, "processed": True}
 ```
-
-## ✨ Features
-
-- **Multi-Protocol Support**: Expose functions via HTTP/REST, gRPC, MQTT, WebSocket, and GraphQL
-- **Zero Boilerplate**: Single decorator approach with sensible defaults
-- **Type Safety**: Automatic type validation and conversion
-- **Hot Reload**: Instant updates during development
-- **Protocol-Specific Configurations**: Fine-tune each protocol interface
-- **Automatic Documentation**: OpenAPI, gRPC reflection, and GraphQL introspection
-- **Comprehensive CLI**: Manage and test your services with ease
-- **Monitoring & Health Checks**: Built-in observability
-- **Enterprise-Ready**: Authentication, authorization, and middleware support
-
-## 🔌 Supported Protocols
-
-| Protocol | Description | Best For |
-|----------|-------------|----------|
-| **HTTP/REST** | RESTful API with JSON | Web clients, general API access |
-| **gRPC** | High-performance RPC | Microservices, performance-critical systems |
-| **MQTT** | Lightweight pub/sub | IoT devices, mobile apps |
-| **WebSocket** | Bidirectional comms | Real-time applications, chat |
-| **GraphQL** | Query language | Flexible data requirements |
-
-## 📚 Examples
 
 ### Advanced Configuration
 
@@ -99,71 +176,29 @@ pkill -f "python calculator.py" && python calculator.py
         "description": "Get user by ID"
     }
 )
-def get_user(user_id: str) -> dict:  # Use dict instead of Dict
+def get_user(user_id: str) -> dict:
     """Get user details by ID."""
     return db.get_user(user_id)
 ```
 
-### Debugging and Logging
-
-PIfunc provides detailed logging for both HTTP and MQTT adapters to help with debugging:
-
-```python
-import logging
-
-# Enable debug logging
-logging.basicConfig(level=logging.DEBUG)
-
-@service(
-    grpc={"streaming": True},
-    websocket={"event": "monitoring.metrics"}
-    http={"path": "/api/data", "method": "POST"},
-    mqtt={"topic": "data/process"}
-)
-async def stream_metrics(interval: int = 1):
-    """Stream system metrics."""
-    while True:
-        metrics = get_system_metrics()
-        yield metrics
-        await asyncio.sleep(interval)
-```
-
-### Working with Complex Types
-
-```python
-@dataclass
-class Product:
-    id: str
-    name: str
-    price: float
-    in_stock: bool
-
-@service()
-def create_product(product: Product) -> Product:
-    """Create a new product."""
-    # PIfunc automatically converts JSON to your dataclass
-    product.id = generate_id()
-    db.save_product(product)
-    return product
-```
-
 ## 🛠️ CLI Usage
 
-PIfunc includes a CLI for interacting with your services:
-
 ```bash
+# Start a service
+python your_service.py
+
 # Call a function via HTTP (default protocol)
 pifunc call add --args '{"a": 5, "b": 3}'
 
 # Call a function with specific protocol
-pifunc call add --protocol http --args '{"a": 5, "b": 3}'
+pifunc call add --protocol grpc --args '{"a": 5, "b": 3}'
 
-# Get help
-pifunc --help
-pifunc call --help
+# Generate client code
+pifunc generate client --language python --output client.py
+
+# View service documentation
+pifunc docs serve
 ```
-
-Note: Additional CLI features like service management, client code generation, documentation viewing, and benchmarking are coming in future releases.
 
 ## 📖 Documentation
 
@@ -174,82 +209,19 @@ Comprehensive documentation is available at [https://www.pifunc.com/docs](https:
 - [Advanced Usage](https://www.pifunc.com/docs/advanced)
 - [Deployment Guide](https://www.pifunc.com/docs/deployment)
 - [Extending PIfunc](https://www.pifunc.com/docs/extending)
-def process_data(data: dict) -> dict:
-    """Process data with detailed logging."""
-    return {"processed": data}
 
 ## 🧪 Testing
-
-PIfunc includes a comprehensive test suite that ensures reliability across all supported protocols and features:
-
-### CLI Tests
-- Command-line interface functionality
-- Protocol-specific service calls
-- Error handling and edge cases
-- Help command documentation
-
-### Service Tests
-- Service decorator functionality
-- Protocol-specific configurations (HTTP, MQTT, WebSocket)
-- Complex data type handling
-- Async function support
-- Middleware integration
-
-### HTTP Adapter Tests
-- Route registration and handling
-- Parameter parsing (path, query, body)
-- Request/response processing
-- Error handling
-- CORS support
-- Middleware execution
-
-### Integration Tests
-- Cross-protocol communication
-- Real-world service scenarios
-- Data streaming capabilities
-- Multi-protocol support validation
-
-```bash
-python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt && python -m pip install -e .
-# Logs will show:
-# - Incoming request/message details
-# - Parameter conversion steps
-# - Function execution details
-# - Response/publication details
-# - Any errors or issues that occur
-```
-
-To run the tests:
 
 ```bash
 # Install development dependencies
 pip install -r requirements-dev.txt
 
 # Run all tests
-python -m pytest -v
 pytest
 
 # Run specific test categories
-pytest tests/test_cli.py
-pytest tests/test_service.py
 pytest tests/test_http_adapter.py
 pytest tests/test_integration.py
-```
-
-
-## PUBLISH
-
-
-```bash
-python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
-```
-
-```bash
-sudo pip install --upgrade pip build twine
-pip install --upgrade pip build twine
-python -m build
-twine check dist/*
-twine upload dist/*
 ```
 
 ## 🤝 Contributing
@@ -265,54 +237,6 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get
 ## 📄 License
 
 PIfunc is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
-
-
-
-Generate directory structures from ASCII art or Markdown files.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
-
----
-
-<div align="center">
-  <img src="assets/logo.svg" alt="PIfunc Logo" width="200">
-  <h1>PIfunc</h1>
-  <p><strong>Protocol Interface Functions</strong></p>
-  <p>One function, every protocol. Everywhere.</p>
-  
-  <p>
-    <a href="#installation"><strong>Installation</strong></a> •
-    <a href="#quick-start"><strong>Quick Start</strong></a> •
-    <a href="#features"><strong>Features</strong></a> •
-    <a href="#examples"><strong>Examples</strong></a> •
-    <a href="#documentation"><strong>Documentation</strong></a> •
-    <a href="#contributing"><strong>Contributing</strong></a> •
-    <a href="#license"><strong>License</strong></a>
-  </p>
-  
-  <p>
-    <a href="https://github.com/pifunc/pifunc/actions">
-      <img src="https://github.com/pifunc/pifunc/workflows/Tests/badge.svg" alt="Tests">
-    </a>
-    <a href="https://pypi.org/project/pifunc/">
-      <img src="https://img.shields.io/pypi/v/pifunc.svg" alt="PyPI">
-    </a>
-    <a href="https://pepy.tech/project/pifunc">
-      <img src="https://pepy.tech/badge/pifunc" alt="Downloads">
-    </a>
-    <a href="https://github.com/pifunc/pifunc/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/pifunc/pifunc.svg" alt="License">
-    </a>
-    <a href="https://discord.gg/pifunc">
-      <img src="https://img.shields.io/discord/1156621449362239529?color=7289da&label=discord&logo=discord&logoColor=white" alt="Discord">
-    </a>
-  </p>
-</div>
-
-
----
-
----
 
 ---
 

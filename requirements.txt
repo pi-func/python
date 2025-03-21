@@ -13,8 +13,16 @@ websockets
 dotenv
 websockets
 python-dotenv
-grpcio
-grpcio-tools
-grpcio-reflection
 protobuf
 zmq
+graphql-core
+pika
+grpcio-reflection==1.54.0
+graphql-core==3.2.3
+aiohttp==3.8.4
+pyzmq==25.0.2
+pika==1.3.2
+
+# Optional dependencies
+dataclasses-json==0.5.7
+schedule

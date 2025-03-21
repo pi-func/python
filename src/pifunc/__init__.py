@@ -13,13 +13,7 @@ from .adapters.redis_adapter import RedisAdapter
 from .adapters.mqtt_adapter import MQTTAdapter
 from .adapters.graphql_adapter import GraphQLAdapter
 from .adapters.amqp_adapter import AMQPAdapter
-
-
-__version__ = "0.1.8"
-__all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket", "grpc",  "mqtt", "zeromq", "redis", "amqp"]
-# Rejestr wszystkich zarejestrowanych funkcji
-_SERVICE_REGISTRY = {}
-
+from .adapters.cron_adapter import CRONAdapter
 
 import inspect
 import sys
@@ -28,34 +22,227 @@ import signal
 import importlib.util
 from typing import Any, Callable, Dict, List, Optional, Set, Type
 
+__version__ = "0.1.8"
+__all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
+
+# Rejestr wszystkich zarejestrowanych funkcji
+_SERVICE_REGISTRY = {}
+_CLIENT_REGISTRY = {}
+
 def http(path, method="GET"):
     """HTTP route decorator."""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+
         # Store HTTP configuration in function metadata
         wrapper._pifunc_http = {
             "path": path,
             "method": method
         }
         return wrapper
+
     return decorator
 
 def websocket(event):
     """WebSocket event decorator."""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+
         # Store WebSocket configuration in function metadata
         wrapper._pifunc_websocket = {
             "event": event
         }
         return wrapper
+
     return decorator
 
+def grpc(service_name=None, method=None, streaming=False):
+    """gRPC service decorator."""
 
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store gRPC configuration in function metadata
+        wrapper._pifunc_grpc = {
+            "service_name": service_name or func.__name__,
+            "method": method or func.__name__,
+            "streaming": streaming
+        }
+        return wrapper
+
+    return decorator
+
+def mqtt(topic, qos=0):
+    """MQTT topic decorator."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store MQTT configuration in function metadata
+        wrapper._pifunc_mqtt = {
+            "topic": topic,
+            "qos": qos
+        }
+        return wrapper
+
+    return decorator
+
+def zeromq(socket_type="REP", identity=None):
+    """ZeroMQ socket decorator."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store ZeroMQ configuration in function metadata
+        wrapper._pifunc_zeromq = {
+            "socket_type": socket_type,
+            "identity": identity or func.__name__
+        }
+        return wrapper
+
+    return decorator
+
+def redis(channel=None, pattern=None, command=None):
+    """Redis pub/sub or command decorator."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store Redis configuration in function metadata
+        wrapper._pifunc_redis = {
+            "channel": channel,
+            "pattern": pattern,
+            "command": command or func.__name__
+        }
+        return wrapper
+
+    return decorator
+
+def amqp(queue=None, exchange=None, routing_key=None, exchange_type="direct"):
+    """AMQP (RabbitMQ) decorator."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store AMQP configuration in function metadata
+        wrapper._pifunc_amqp = {
+            "queue": queue or func.__name__,
+            "exchange": exchange or "",
+            "routing_key": routing_key or func.__name__,
+            "exchange_type": exchange_type
+        }
+        return wrapper
+
+    return decorator
+
+def graphql(field_name=None, is_mutation=False, description=None):
+    """GraphQL field decorator."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store GraphQL configuration in function metadata
+        wrapper._pifunc_graphql = {
+            "field_name": field_name or func.__name__,
+            "is_mutation": is_mutation,
+            "description": description or func.__doc__ or ""
+        }
+        return wrapper
+
+    return decorator
+
+def cron(interval=None, at=None, cron_expression=None, description=None):
+    """CRON job decorator."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store CRON configuration in function metadata
+        config = {}
+        if interval:
+            config["interval"] = interval
+        if at:
+            config["at"] = at
+        if cron_expression:
+            config["cron_expression"] = cron_expression
+        if description:
+            config["description"] = description or func.__doc__ or ""
+
+        wrapper._pifunc_cron = config
+        return wrapper
+
+    return decorator
+
+def client(
+        protocol=None,
+        service=None,
+        **protocol_configs
+):
+    """
+    Dekorator służący do rejestracji funkcji jako klienta usługi.
+
+    Args:
+        protocol: Protokół, przez który ma być wywołana usługa (http, grpc, zeromq, itd.).
+        service: Nazwa usługi docelowej (domyślnie nazwa funkcji).
+        **protocol_configs: Konfiguracje dla konkretnego protokołu.
+
+    Returns:
+        Dekorowana funkcja.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Ustalamy nazwę usługi docelowej
+        target_service = service or func.__name__
+
+        # Zbieramy metadane o funkcji klienckiej
+        metadata = {
+            "name": func.__name__,
+            "target_service": target_service,
+            "function": func,
+            "module": func.__module__,
+            "file": inspect.getfile(func),
+            "_is_client_function": True
+        }
+
+        # Ustalamy protokół komunikacji
+        if protocol:
+            metadata["protocol"] = protocol
+            # Dodajemy specyficzną konfigurację protokołu
+            metadata[protocol] = protocol_configs
+
+        # Rejestrujemy funkcję w rejestrze klientów
+        _CLIENT_REGISTRY[func.__name__] = metadata
+
+        # Ustawiamy atrybut _pifunc_client na dekorowanej funkcji
+        wrapper._pifunc_client = metadata
+
+        return wrapper
+
+    return decorator
 
 def service(
         protocols: Optional[List[str]] = None,
@@ -88,7 +275,7 @@ def service(
         service_description = description or func.__doc__ or ""
 
         # Ustalamy protokoły
-        available_protocols = ["grpc", "http", "mqtt", "websocket", "graphql"]
+        available_protocols = ["grpc", "http", "mqtt", "websocket", "graphql", "zeromq", "redis", "amqp", "cron"]
         enabled_protocols = protocols or available_protocols
 
         # Analizujemy sygnaturę funkcji
@@ -119,33 +306,47 @@ def service(
         metadata["signature"][
             "return_annotation"] = signature.return_annotation if signature.return_annotation != inspect.Parameter.empty else None
 
-        # Validate and add protocol configurations
-        valid_http_keys = {"path", "method", "middleware"}
-        valid_mqtt_keys = {"topic", "qos"}
-        valid_websocket_keys = {"event"}
-        
+        # Sprawdzamy, czy funkcja ma już skonfigurowane protokoły za pomocą dedykowanych dekoratorów
+        if hasattr(func, '_pifunc_http'):
+            metadata["http"] = func._pifunc_http
+
+        if hasattr(func, '_pifunc_websocket'):
+            metadata["websocket"] = func._pifunc_websocket
+
+        if hasattr(func, '_pifunc_grpc'):
+            metadata["grpc"] = func._pifunc_grpc
+
+        if hasattr(func, '_pifunc_mqtt'):
+            metadata["mqtt"] = func._pifunc_mqtt
+
+        if hasattr(func, '_pifunc_zeromq'):
+            metadata["zeromq"] = func._pifunc_zeromq
+
+        if hasattr(func, '_pifunc_redis'):
+            metadata["redis"] = func._pifunc_redis
+
+        if hasattr(func, '_pifunc_amqp'):
+            metadata["amqp"] = func._pifunc_amqp
+
+        if hasattr(func, '_pifunc_graphql'):
+            metadata["graphql"] = func._pifunc_graphql
+
+        if hasattr(func, '_pifunc_cron'):
+            metadata["cron"] = func._pifunc_cron
+
+        # Dodajemy także konfigurację przekazaną jako argumenty dekoratora
         for protocol, config in protocol_configs.items():
-            if protocol not in available_protocols:
-                continue
-                
-            if protocol == "http":
-                invalid_keys = set(config.keys()) - valid_http_keys
-                if invalid_keys:
-                    raise ValueError(f"Invalid HTTP configuration keys: {invalid_keys}")
-            elif protocol == "mqtt":
-                invalid_keys = set(config.keys()) - valid_mqtt_keys
-                if invalid_keys:
-                    raise ValueError(f"Invalid MQTT configuration keys: {invalid_keys}")
-            elif protocol == "websocket":
-                invalid_keys = set(config.keys()) - valid_websocket_keys
-                if invalid_keys:
-                    raise ValueError(f"Invalid WebSocket configuration keys: {invalid_keys}")
-                    
-            metadata[protocol] = config
+            if protocol in available_protocols:
+                metadata[protocol] = config
+
+        # Sprawdzamy, czy funkcja jest klientem
+        if hasattr(func, '_pifunc_client'):
+            metadata["client"] = func._pifunc_client
+            metadata["_is_client_function"] = True
 
         # Rejestrujemy funkcję w globalnym rejestrze
         _SERVICE_REGISTRY[service_name] = metadata
-        
+
         # Ustawiamy atrybut _pifunc_service na dekorowanej funkcji
         wrapper._pifunc_service = metadata
 
@@ -159,7 +360,6 @@ def service(
 
     return decorator
 
-
 def run_services(**config):
     """
     Uruchamia wszystkie zarejestrowane usługi z podaną konfiguracją.
@@ -170,15 +370,39 @@ def run_services(**config):
     """
     # Tworzymy słownik na adaptery
     adapters = {}
-    
+    clients = {}
+
     # Importujemy tylko te adaptery, które są potrzebne
-    if "http" in config:
-        from pifunc.adapters.http_adapter import HTTPAdapter
+    if "http" in config or "http" in _get_used_protocols():
         adapters["http"] = HTTPAdapter()
-        
-    if "mqtt" in config:
-        from pifunc.adapters.mqtt_adapter import MQTTAdapter
+
+    if "websocket" in config or "websocket" in _get_used_protocols():
+        adapters["websocket"] = WebSocketAdapter()
+
+    if "grpc" in config or "grpc" in _get_used_protocols():
+        adapters["grpc"] = GRPCAdapter()
+
+    if "zeromq" in config or "zeromq" in _get_used_protocols():
+        adapters["zeromq"] = ZeroMQAdapter()
+
+    if "redis" in config or "redis" in _get_used_protocols():
+        adapters["redis"] = RedisAdapter()
+
+    if "mqtt" in config or "mqtt" in _get_used_protocols():
         adapters["mqtt"] = MQTTAdapter()
+
+    if "graphql" in config or "graphql" in _get_used_protocols():
+        adapters["graphql"] = GraphQLAdapter()
+
+    if "amqp" in config or "amqp" in _get_used_protocols():
+        adapters["amqp"] = AMQPAdapter()
+
+    if "cron" in config or "cron" in _get_used_protocols():
+        # Przygotowanie konfiguracji dla CRON, dodając dostępne klienty
+        cron_config = config.get("cron", {}).copy() if "cron" in config else {}
+        cron_config["clients"] = clients
+        adapters["cron"] = CRONAdapter()
+        config["cron"] = cron_config
 
     # Konfigurujemy adaptery
     for protocol, adapter in adapters.items():
@@ -188,6 +412,41 @@ def run_services(**config):
             # Używamy domyślnej konfiguracji
             adapter.setup({})
 
+    # Tworzymy klientów dla każdego protokołu
+    from pifunc_client import PiFuncClient
+
+    for protocol, adapter in adapters.items():
+        # Tworzymy bazowy URL dla klienta w zależności od protokołu
+        if protocol == "http":
+            host = config.get("http", {}).get("host", "localhost")
+            port = config.get("http", {}).get("port", 8080)
+            base_url = f"http://{host}:{port}"
+            clients[protocol] = PiFuncClient(base_url=base_url, protocol=protocol)
+
+        elif protocol == "grpc":
+            host = config.get("grpc", {}).get("host", "localhost")
+            port = config.get("grpc", {}).get("port", 50051)
+            base_url = f"{host}:{port}"
+            clients[protocol] = PiFuncClient(base_url=base_url, protocol=protocol)
+
+        elif protocol == "zeromq":
+            host = config.get("zeromq", {}).get("host", "localhost")
+            port = config.get("zeromq", {}).get("port", 5555)
+            base_url = f"{host}:{port}"
+            clients[protocol] = PiFuncClient(base_url=base_url, protocol=protocol)
+
+        elif protocol == "amqp":
+            host = config.get("amqp", {}).get("host", "localhost")
+            port = config.get("amqp", {}).get("port", 5672)
+            base_url = f"{host}:{port}"
+            clients[protocol] = PiFuncClient(base_url=base_url, protocol=protocol)
+
+        elif protocol == "graphql":
+            host = config.get("graphql", {}).get("host", "localhost")
+            port = config.get("graphql", {}).get("port", 8082)
+            base_url = f"http://{host}:{port}/graphql"
+            clients[protocol] = PiFuncClient(base_url=base_url, protocol=protocol)
+
     # Rejestrujemy funkcje w adapterach
     for service_name, metadata in _SERVICE_REGISTRY.items():
         enabled_protocols = metadata.get("protocols", [])
@@ -195,6 +454,16 @@ def run_services(**config):
         for protocol in enabled_protocols:
             if protocol in adapters:
                 adapters[protocol].register_function(metadata["function"], metadata)
+
+    # Rejestrujemy funkcje klienckie w adapterze CRON
+    if "cron" in adapters:
+        # Aktualizujemy klientów w konfiguracji CRON
+        adapters["cron"].config["clients"] = clients
+
+        # Rejestrujemy funkcje klienckie
+        for client_name, metadata in _CLIENT_REGISTRY.items():
+            if "_is_client_function" in metadata:
+                adapters["cron"].register_function(metadata["function"], metadata)
 
     # Uruchamiamy adaptery
     for protocol, adapter in adapters.items():
@@ -230,7 +499,6 @@ def run_services(**config):
     except KeyboardInterrupt:
         handle_signal(None, None)
 
-
 def _get_used_protocols() -> Set[str]:
     """Zwraca zbiór protokołów używanych przez zarejestrowane usługi."""
     used_protocols = set()
@@ -239,7 +507,6 @@ def _get_used_protocols() -> Set[str]:
         used_protocols.update(metadata.get("protocols", []))
 
     return used_protocols
-
 
 def _start_file_watcher(adapters):
     """Uruchamia wątek monitorujący zmiany w plikach."""
@@ -283,7 +550,6 @@ def _start_file_watcher(adapters):
 
     thread = threading.Thread(target=watch_files, daemon=True)
     thread.start()
-
 
 # Funkcja do załadowania modułu z pliku
 def load_module_from_file(file_path):

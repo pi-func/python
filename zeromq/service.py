@@ -11,7 +11,6 @@ import zmq
 # Load environment variables from .env
 try:
     from dotenv import load_dotenv
-
     load_dotenv()
 except ImportError:
     print("dotenv not installed, using default environment variables")
