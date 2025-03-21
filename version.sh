@@ -7,9 +7,9 @@ rm -rf build
 # Zainstaluj w trybie edytowalnym
 pip install -e .
 python changelog.py
+python incrementation.py
 bash git.sh
 bash publish.sh
-
 
 
 # publish.sh
