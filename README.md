@@ -288,22 +288,195 @@ def get_user(user_id: str) -> dict:
 
 ## 🛠️ CLI Usage
 
-```bash
-# Start a service
-python your_service.py
+PIfunc comes with a powerful command-line interface that lets you interact with services, generate client code, and access documentation without writing additional code.
 
-# Call a function via HTTP (default protocol)
+### Installation
+
+When you install PIfunc, the CLI is automatically available as the `pifunc` command:
+
+```bash
+# Install PIfunc
+pip install pifunc
+
+# Verify CLI installation
+pifunc --help
+```
+
+### Calling Functions
+
+The most common use case is calling functions on running PIfunc services:
+
+```bash
+# Basic usage - call a function via HTTP (default protocol)
 pifunc call add --args '{"a": 5, "b": 3}'
 
-# Call a function with specific protocol
+# Expected output:
+# 8
+```
+
+#### Call Options
+
+```bash
+# Specify a different protocol
 pifunc call add --protocol grpc --args '{"a": 5, "b": 3}'
 
-# Generate client code
-pifunc generate client --language python --output client.py
+# Call a function on a remote host
+pifunc call add --host api.example.com --port 443 --args '{"a": 5, "b": 3}'
 
-# View service documentation
+# Use a different HTTP method (default is POST)
+pifunc call get_user --method GET --args '{"user_id": "123"}'
+
+# Specify a custom path (default is /api/{function_name})
+pifunc call user_details --path "/users/details" --args '{"id": "123"}'
+
+# Set a longer timeout for long-running operations
+pifunc call process_data --args '{"size": "large"}' --timeout 60
+
+# Enable verbose output for debugging
+pifunc call add --args '{"a": 5, "b": 3}' --verbose
+```
+
+### Generating Client Code
+
+Generate client libraries to interact with PIfunc services programmatically:
+
+```bash
+# Generate a Python client
+pifunc generate client --language python --output my_client.py
+
+# Generate a client for a specific protocol
+pifunc generate client --protocol grpc --language python
+
+# Generate a client for a specific server
+pifunc generate client --host api.example.com --port 443
+```
+
+The generated client can be used in your code:
+
+```python
+from my_client import PiFuncClient
+
+# Create a client instance
+client = PiFuncClient()
+
+# Call functions
+result = client.add(a=5, b=3)
+print(result)  # 8
+```
+
+### Documentation Tools
+
+Access and generate documentation for your services:
+
+```bash
+# Start an interactive documentation server
+pifunc docs serve
+
+# Generate OpenAPI documentation
+pifunc docs generate --format openapi --output ./docs
+
+# Generate Markdown documentation
+pifunc docs generate --format markdown
+
+# Generate HTML documentation
+pifunc docs generate --format html
+```
+
+### Examples in Context
+
+#### Example 1: Start a service and call it
+
+Terminal 1:
+```bash
+# Start the example service
+python examples/calculator.py
+```
+
+Terminal 2:
+```bash
+# Call a function on the running service
+pifunc call add --args '{"a": 10, "b": 20}'
+# Output: 30
+
+# Get service information
+pifunc call get_info
+# Output: {"name": "Calculator", "version": "1.0.0", "functions": ["add", "subtract", "multiply", "divide"]}
+```
+
+#### Example 2: Generate a client and use it in a script
+
+```bash
+# Generate a client for the calculator service
+pifunc generate client --output calculator_client.py
+```
+
+Then in your Python code:
+
+```python
+from calculator_client import PiFuncClient
+
+client = PiFuncClient()
+
+# Direct function calls
+sum_result = client.add(a=5, b=3)
+product = client.multiply(a=4, b=7)
+
+print(f"Sum: {sum_result}, Product: {product}")
+```
+
+#### Example 3: View and explore API documentation
+
+```bash
+# Start the documentation server
+pifunc docs serve
+
+# Browser automatically opens at http://localhost:8000
+# You can explore the API interactively
+```
+
+### Troubleshooting CLI Usage
+
+If you encounter issues with the CLI:
+
+#### Command not found
+
+```bash
+# If 'pifunc' command isn't found, you can run it as:
+python -m pifunc.cli call add --args '{"a": 5, "b": 3}'
+
+# Or check if the package is installed in development mode
+pip install -e .
+```
+
+#### Connection errors
+
+```bash
+# If connection to service fails, verify:
+# 1. The service is running
+# 2. The port is correct
+# 3. No firewall is blocking the connection
+
+# Test with verbose mode
+pifunc call add --args '{"a": 5, "b": 3}' --verbose
+```
+
+#### Wrong function or arguments
+
+```bash
+# If you get errors about missing functions or arguments, check:
+# 1. The function name is correct
+# 2. You're using the right protocol
+# 3. Arguments match the expected format
+
+# Get information about available functions
 pifunc docs serve
 ```
+
+
+
+
+
+
 
 ## 🧪 Testing
 
