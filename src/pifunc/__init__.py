@@ -22,7 +22,7 @@ import signal
 import importlib.util
 from typing import Any, Callable, Dict, List, Optional, Set, Type
 
-__version__ = "0.1.8"
+__version__ = "0.1.11"
 __all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
 
 # Rejestr wszystkich zarejestrowanych funkcji
