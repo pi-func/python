@@ -57,6 +57,7 @@ Now your function is accessible via:
 ## ✨ Features
 
 - **Multi-Protocol Support**: Expose functions via multiple protocols at once
+- **Protocol Auto-Detection**: Just specify configuration for each protocol you want to use
 - **Zero Boilerplate**: Single decorator approach with sensible defaults
 - **Type Safety**: Automatic type validation and conversion
 - **Hot Reload**: Instant updates during development
@@ -64,12 +65,111 @@ Now your function is accessible via:
 - **Automatic Documentation**: OpenAPI, gRPC reflection, and GraphQL introspection
 - **Client Integration**: Built-in client with `@client` decorator for inter-service communication
 - **Scheduled Tasks**: CRON-like scheduling with `cron` protocol
-- **Serverless Deployment**: Support for AWS Lambda, Google Cloud Functions, and Azure Functions
-- **Comprehensive CLI**: Manage and test your services with ease
+- **Environment Variable Control**: Limit available protocols with `PIFUNC_PROTOCOLS`
 - **Monitoring & Health Checks**: Built-in observability
 - **Enterprise-Ready**: Authentication, authorization, and middleware support
 
 ## 📚 Examples
+
+### Complete Product API Example
+
+
+
+![img.png](img.png)
+
+
+This demonstrates the power of PIfunc's protocol-agnostic approach - the same function can be exposed via multiple protocols, and clients can interact with services seamlessly across protocol boundaries,
+demonstrates protocol filtering, client-service communication with CRON scheduling, and the API landing page:
+
+```python
+# product.py
+from random import randint, choice
+from string import ascii_letters
+import os
+import json
+
+# Optional: Filter protocols via environment variable
+os.environ["PIFUNC_PROTOCOLS"] = "http,cron"
+
+# Import pifunc after setting environment variables
+from pifunc import service, client, run_services
+
+
+@service(http={"path": "/api/products", "method": "POST"})
+def create_product(product: dict) -> dict:
+    """Create a new product."""
+    return {
+        "id": product["id"],
+        "name": product["name"],
+        "price": product["price"],
+        "in_stock": product.get("in_stock", True)
+    }
+
+
+@service(http={"path": "/", "method": "GET"})
+def hello() -> dict:
+    """API landing page with documentation."""
+    return {
+        "description": "Create a new product API",
+        "path": "/api/products",
+        "url": "http://127.0.0.1:8080/api/products/",
+        "method": "POST",
+        "protocol": "HTTP",
+        "version": "1.1",
+        "example_data": {
+            "id": "1",
+            "name": "test",
+            "price": "10",
+            "in_stock": True
+        },
+    }
+
+
+@client(http={"path": "/api/products", "method": "POST"})
+@service(cron={"interval": "1m"})
+def generate_product() -> dict:
+    """Generate a random product every minute."""
+    product = {
+        "id": str(randint(1000, 9999)),
+        "name": ''.join(choice(ascii_letters) for i in range(8)),
+        "price": str(randint(10, 100)),
+        "in_stock": True
+    }
+    print(f"Generating random product: {product}")
+    return product
+
+
+if __name__ == "__main__":
+    # Protocols are auto-detected, no need to specify them explicitly
+    run_services(
+        http={"port": 8080},
+        cron={"check_interval": 1},
+        watch=True
+    )
+```
+
+**Key Features Demonstrated:**
+
+1. **Protocol Filtering**: Using environment variables to limit which protocols are loaded (`os.environ["PIFUNC_PROTOCOLS"] = "http,cron"`)
+
+2. **API Creation**: Creating a simple product API with POST endpoint (`/api/products`)
+
+3. **Landing Page**: Providing API documentation via a root endpoint (`/`)
+
+4. **Scheduled Client**: Automatically generating random products every minute using the CRON protocol
+
+5. **Auto Protocol Detection**: The `run_services` function automatically detects which protocols to enable based on service configurations
+
+6. **Simplified Client Syntax**: Using the simplified `@client(http={...})` syntax instead of specifying protocol separately
+
+When you run this example:
+* An HTTP server starts on port 8080
+* The CRON scheduler begins running
+* Every minute, a random product is generated and sent to the `/api/products` endpoint
+* You can visit `http://localhost:8080/` to see the API documentation
+* You can POST to `http://localhost:8080/api/products` to create products manually
+
+
 
 ### Parameter Handling
 
@@ -99,9 +199,7 @@ from pifunc import service, client, run_services
 import random
 
 # Server-side service
-@service(
-    http={"path": "/api/products", "method": "POST"}
-)
+@service(http={"path": "/api/products", "method": "POST"})
 def create_product(product: dict) -> dict:
     """Create a new product."""
     return {
@@ -112,12 +210,8 @@ def create_product(product: dict) -> dict:
     }
 
 # Client-side function with scheduled execution
-@client(
-    http={"path": "/api/products", "method": "POST"}
-)
-@service(
-    cron={"interval": "1h"}  # Run every hour
-)
+@client(http={"path": "/api/products", "method": "POST"})  # Simplified syntax!
+@service(cron={"interval": "1h"})  # Run every hour
 def generate_product() -> dict:
     """Generate a random product and send it to the create_product service."""
     return {
@@ -127,6 +221,7 @@ def generate_product() -> dict:
     }
 
 if __name__ == "__main__":
+    # Protocols are auto-detected from registered services!
     run_services(
         http={"port": 8080},
         cron={"check_interval": 1},
@@ -134,19 +229,29 @@ if __name__ == "__main__":
     )
 ```
 
-### Serverless Functions
+### Protocol Filtering with Environment Variables
 
 ```python
-from pifunc import service
+# Control available protocols via environment variables
+import os
+os.environ["PIFUNC_PROTOCOLS"] = "http,cron"  # Only enable HTTP and CRON
+
+from pifunc import service, run_services
 
 @service(
-    lambda={"memory": 128, "timeout": 30},
-    http={"path": "/api/process", "method": "POST"}
+    http={"path": "/api/data"},
+    grpc={},          # Will be ignored due to PIFUNC_PROTOCOLS
+    websocket={}      # Will be ignored due to PIFUNC_PROTOCOLS
 )
-def process_data(data: dict) -> dict:
-    """Process data in AWS Lambda or locally via HTTP."""
-    result = perform_calculation(data)
-    return {"result": result, "processed": True}
+def get_data():
+    return {"status": "success", "data": [...]}
+
+if __name__ == "__main__":
+    # Only HTTP and CRON adapters will be loaded
+    run_services(
+        http={"port": 8080},
+        watch=True
+    )
 ```
 
 ### Advanced Configuration
@@ -200,16 +305,6 @@ pifunc generate client --language python --output client.py
 pifunc docs serve
 ```
 
-## 📖 Documentation
-
-Comprehensive documentation is available at [https://www.pifunc.com/docs](https://www.pifunc.com/docs)
-
-- [API Reference](https://www.pifunc.com/docs/api-reference)
-- [Protocol Configurations](https://www.pifunc.com/docs/protocols)
-- [Advanced Usage](https://www.pifunc.com/docs/advanced)
-- [Deployment Guide](https://www.pifunc.com/docs/deployment)
-- [Extending PIfunc](https://www.pifunc.com/docs/extending)
-
 ## 🧪 Testing
 
 ```bash
@@ -242,9 +337,4 @@ PIfunc is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for deta
 
 <div align="center">
   <p>Built with ❤️ by the PIfunc team and contributors</p>
-  <p>
-    <a href="https://www.pifunc.com">Website</a> •
-    <a href="https://twitter.com/pifunc">Twitter</a> •
-    <a href="https://discord.gg/pifunc">Discord</a>
-  </p>
 </div>

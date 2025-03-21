@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pifunc",
-    version="0.1.11",
+    version="0.1.14",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
