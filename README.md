@@ -210,7 +210,7 @@ PIfunc includes a comprehensive test suite that ensures reliability across all s
 - Multi-protocol support validation
 
 ```bash
-python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt && python3 -m pip install -e .
+python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt && python -m pip install -e .
 # Logs will show:
 # - Incoming request/message details
 # - Parameter conversion steps

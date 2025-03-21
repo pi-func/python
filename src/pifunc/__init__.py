@@ -4,17 +4,23 @@ pifunc - Generate directory structures from ASCII art or Markdown files.
 
 from .cli import main
 from functools import wraps
+# Import adapters
+from .adapters.http_adapter import HTTPAdapter
+from .adapters.websocket_adapter import WebSocketAdapter
+from .adapters.grpc_adapter import GRPCAdapter
+from .adapters.zeromq_adapter import ZeroMQAdapter
+from .adapters.redis_adapter import RedisAdapter
+from .adapters.mqtt_adapter import MQTTAdapter
+from .adapters.graphql_adapter import GraphQLAdapter
+from .adapters.amqp_adapter import AMQPAdapter
 
 
 __version__ = "0.1.7"
-__all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket"]
+__all__ = ["service", "run_services", "load_module_from_file", "main", "http", "websocket", "grpc",  "mqtt", "zeromq", "redis", "amqp"]
 # Rejestr wszystkich zarejestrowanych funkcji
 _SERVICE_REGISTRY = {}
 
 
-# Import adapters
-from .adapters.http_adapter import HTTPAdapter
-from .adapters.websocket_adapter import WebSocketAdapter
 import inspect
 import sys
 import os

@@ -10,3 +10,5 @@ paho-mqtt>=1.6.1
 grpcio>=1.62.0
 grpcio-tools>=1.62.0
 websockets
+dotenv
+python-dotenv
