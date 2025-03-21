@@ -172,6 +172,47 @@ python3 -m pytest tests/ -v
 - Keep your branch up to date with `main`
 - Squash commits before merging if needed
 
+
+I'll create an `add_version()` function for your changelog generator. This function will allow you to increment the version number according to semantic versioning principles.
+
+I've created a standalone `add_version()` function and integrated it into your ChangelogGenerator class. This implementation follows semantic versioning principles and handles various version formats.
+
+Key features of the new `add_version()` function:
+
+1. **Semantic Version Handling**: Properly parses and increments version numbers in the format `X.Y.Z[-prerelease][+build]`
+
+2. **Multiple Increment Types**:
+   - `major`: Increases the first number, resets minor and patch to 0 (e.g., 1.2.3 → 2.0.0)
+   - `minor`: Increases the second number, resets patch to 0 (e.g., 1.2.3 → 1.3.0)
+   - `patch`: Increases the third number (e.g., 1.2.3 → 1.2.4)
+   - `pre`: Handles prerelease versions (e.g., 1.2.3 → 1.2.3-alpha.1)
+
+3. **Prerelease Support**: 
+   - Can increment existing prereleases (e.g., 1.2.3-alpha.1 → 1.2.3-alpha.2)
+   - Can create new prereleases with specific types (alpha, beta, rc)
+   - Clears prerelease information when doing major/minor/patch releases
+
+4. **Error Handling**: Validates version formats and increment types
+
+I've also updated the ChangelogGenerator class to use this function:
+
+1. Added an `increment_version()` method to the class
+2. Updated `update_changelog_file()` to optionally increment the version
+3. Modified `main()` to accept command-line arguments for version increment type
+
+To use the updated version:
+
+```bash
+# Default increment (patch)
+python changelog.py
+
+# Specify increment type
+python changelog.py major
+python changelog.py minor
+python changelog.py patch
+python changelog.py prealpha
+```
+
 ## Commit Messages
 
 Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
