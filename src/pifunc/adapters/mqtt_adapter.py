@@ -10,6 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class MQTTAdapter(ProtocolAdapter):
     """Adapter protokołu MQTT."""
 
@@ -18,6 +19,7 @@ class MQTTAdapter(ProtocolAdapter):
         self.functions = {}
         self.config = {}
         self._started = False
+        self._connected = False
 
     def setup(self, config: Dict[str, Any]) -> None:
         """Konfiguruje adapter MQTT."""
@@ -28,6 +30,8 @@ class MQTTAdapter(ProtocolAdapter):
         port = config.get("port", 1883)
         username = config.get("username", None)
         password = config.get("password", None)
+        # Dodajemy flagę wymuszania połączenia
+        self.force_connection = config.get("force_connection", False)
 
         if username and password:
             self.client.username_pw_set(username, password)
@@ -37,14 +41,37 @@ class MQTTAdapter(ProtocolAdapter):
         self.client.on_message = self._on_message
 
         try:
-            # Łączymy się z brokerem
-            self.client.connect(broker, port, 60)
+            # Łączymy się z brokerem tylko jeśli wymuszono połączenie
+            if self.force_connection:
+                self.client.connect(broker, port, 60)
+                self._connected = True
+            else:
+                # Próbujemy się połączyć, ale ignorujemy błędy
+                try:
+                    self.client.connect(broker, port, 60)
+                    self._connected = True
+                except Exception as e:
+                    logger.warning(f"Failed to connect to MQTT broker: {e}")
+                    print(f"Warning: MQTT broker not available at {broker}:{port}")
+                    print("MQTT features will be disabled. Set force_connection=True to require MQTT connection.")
+                    self._connected = False
         except Exception as e:
-            logger.error(f"Failed to connect to MQTT broker: {e}")
-            raise
+            if self.force_connection:
+                logger.error(f"Failed to connect to MQTT broker: {e}")
+                raise
+            else:
+                logger.warning(f"Failed to connect to MQTT broker: {e}")
+                print(f"Warning: MQTT broker not available at {broker}:{port}")
+                print("MQTT features will be disabled. Set force_connection=True to require MQTT connection.")
+                self._connected = False
 
     def register_function(self, func: Callable, metadata: Dict[str, Any]) -> None:
         """Rejestruje funkcję jako handler dla tematu MQTT."""
+        # Jeśli nie jesteśmy połączeni z brokerem, to nie rejestrujemy funkcji
+        if not self._connected:
+            logger.warning(f"Not connected to MQTT broker, skipping registration of {func.__name__}")
+            return
+
         # Pobieramy konfigurację MQTT
         mqtt_config = metadata.get("mqtt", {})
         if not mqtt_config:
@@ -66,6 +93,7 @@ class MQTTAdapter(ProtocolAdapter):
         """Callback wywoływany po połączeniu z brokerem."""
         if rc == 0:
             logger.info("Connected to MQTT broker")
+            self._connected = True
             # Subskrybujemy wszystkie zarejestrowane tematy
             for topic, config in self.functions.items():
                 try:
@@ -75,6 +103,7 @@ class MQTTAdapter(ProtocolAdapter):
                 except Exception as e:
                     logger.error(f"Error subscribing to topic {topic}: {e}")
         else:
+            self._connected = False
             logger.error(f"Failed to connect to MQTT broker with code {rc}")
 
     def _on_message(self, client, userdata, msg):
@@ -155,6 +184,10 @@ class MQTTAdapter(ProtocolAdapter):
 
     def _publish_error(self, topic: str, error_message: str) -> None:
         """Publikuje komunikat o błędzie."""
+        if not self._connected:
+            logger.warning(f"Not connected to MQTT broker, cannot publish error: {error_message}")
+            return
+
         error_topic = f"{topic}/error"
         try:
             error_payload = json.dumps({"error": error_message})
@@ -165,7 +198,7 @@ class MQTTAdapter(ProtocolAdapter):
 
     def start(self) -> None:
         """Uruchamia klienta MQTT."""
-        if self._started:
+        if self._started or not self._connected:
             return
 
         try:
@@ -179,17 +212,22 @@ class MQTTAdapter(ProtocolAdapter):
             print(f"Klient MQTT uruchomiony i połączony z {broker}:{port}")
         except Exception as e:
             logger.error(f"Failed to start MQTT client: {e}")
-            raise
+            if self.force_connection:
+                raise
+            else:
+                print(f"Warning: Failed to start MQTT client: {e}")
+                print("MQTT features will be disabled")
 
     def stop(self) -> None:
         """Zatrzymuje klienta MQTT."""
-        if not self._started:
+        if not self._started or not self._connected:
             return
 
         try:
             self.client.loop_stop()
             self.client.disconnect()
             self._started = False
+            self._connected = False
             logger.info("MQTT client stopped")
         except Exception as e:
             logger.error(f"Error stopping MQTT client: {e}")
