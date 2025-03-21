@@ -6,9 +6,14 @@ import time
 import inspect
 import os
 from typing import Any, Callable, Dict, List, Optional
+# Import only ZeroMQ functionality
+from pifunc.adapters.zeromq_adapter import ZeroMQAdapter
+from pifunc.core.service import service
+from pifunc.adapters import ProtocolAdapter
+
+# Your service code here
 import zmq
 import zmq.asyncio
-from pifunc.adapters import ProtocolAdapter
 
 
 class ZeroMQAdapter(ProtocolAdapter):
