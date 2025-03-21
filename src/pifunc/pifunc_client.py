@@ -1,44 +1,42 @@
-# pifunc/pifunc_client.py
+# pifunc_client.py
 import json
 import requests
 
 
 class PiFuncClient:
-    """Klient do komunikacji z usługami pifunc."""
+    """Simple client for pifunc services."""
 
-    def __init__(self, base_url: str = "http://localhost:8080", protocol: str = "http"):
+    def __init__(self, base_url="http://localhost:8080", protocol="http"):
         """
-        Inicjalizuje klienta pifunc.
+        Initialize the pifunc client.
 
         Args:
-            base_url: Bazowy URL serwera dla protokołu HTTP
-            protocol: Domyślny protokół komunikacji ('http', 'grpc', 'zeromq', 'amqp', 'graphql')
+            base_url: Base URL for the HTTP protocol
+            protocol: Default protocol to use ('http', 'grpc', etc.)
         """
         self.base_url = base_url
         self.protocol = protocol.lower()
+        self._session = requests.Session()
 
-        # Inicjalizujemy sesję HTTP
-        self._http_session = requests.Session()
-
-    def call(self, service_name: str, args=None, **kwargs):
+    def call(self, service_name, args=None, **kwargs):
         """
-        Wywołuje zdalną usługę.
+        Call a remote service.
 
         Args:
-            service_name: Nazwa usługi do wywołania
-            args: Argumenty do przekazania usłudze
-            **kwargs: Dodatkowa konfiguracja specyficzna dla protokołu
+            service_name: Name of the service to call
+            args: Arguments to pass to the service
+            **kwargs: Additional protocol-specific configuration
 
         Returns:
-            Wynik wywołania usługi
+            Result of the service call
         """
         if args is None:
             args = {}
 
-        # Określamy protokół
+        # Determine which protocol to use
         protocol = kwargs.get('protocol', self.protocol)
 
-        # Wywołujemy usługę według wybranego protokołu
+        # Call service based on protocol
         if protocol == "http":
             path = kwargs.get("path", f"/api/{service_name}")
             method = kwargs.get("method", "POST")
@@ -46,16 +44,22 @@ class PiFuncClient:
             url = f"{self.base_url}{path}"
 
             if method.upper() == "GET":
-                response = self._http_session.get(url, params=args)
+                response = self._session.get(url, params=args)
             else:
-                response = self._http_session.post(url, json=args)
+                response = self._session.post(url, json=args)
 
-            response.raise_for_status()
-            return response.json()
+            try:
+                response.raise_for_status()
+                return response.json()
+            except requests.RequestException as e:
+                print(f"HTTP request error: {e}")
+                return {"error": str(e)}
+            except ValueError:
+                return {"result": response.text}
         else:
-            raise ValueError(f"Protokół {protocol} nie jest jeszcze obsługiwany")
+            print(f"Protocol {protocol} is not implemented yet")
+            return {"error": f"Protocol {protocol} not implemented"}
 
     def close(self):
-        """Zamyka wszystkie połączenia."""
-        # Zamykamy sesję HTTP
-        self._http_session.close()
+        """Close all connections."""
+        self._session.close()

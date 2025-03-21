@@ -8,6 +8,9 @@ from typing import Any, Callable, Dict, List, Optional
 import redis
 from redis.client import PubSub
 from pifunc.adapters import ProtocolAdapter
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RedisAdapter(ProtocolAdapter):
@@ -20,10 +23,13 @@ class RedisAdapter(ProtocolAdapter):
         self.config = {}
         self.listen_thread = None
         self.running = False
+        self._connected = False
 
     def setup(self, config: Dict[str, Any]) -> None:
         """Konfiguruje adapter Redis."""
         self.config = config
+        # Dodajemy flagę wymuszania połączenia
+        self.force_connection = config.get("force_connection", False)
 
         # Konfigurujemy klienta Redis
         host = config.get("host", "localhost")
@@ -32,21 +38,68 @@ class RedisAdapter(ProtocolAdapter):
         password = config.get("password", None)
         socket_timeout = config.get("socket_timeout", 5)
 
-        # Tworzymy klienta Redis
-        self.client = redis.Redis(
-            host=host,
-            port=port,
-            db=db,
-            password=password,
-            socket_timeout=socket_timeout,
-            decode_responses=True  # Automatyczne dekodowanie odpowiedzi
-        )
+        try:
+            # Tworzymy klienta Redis tylko jeśli wymuszono połączenie
+            if self.force_connection:
+                self.client = redis.Redis(
+                    host=host,
+                    port=port,
+                    db=db,
+                    password=password,
+                    socket_timeout=socket_timeout,
+                    decode_responses=True  # Automatyczne dekodowanie odpowiedzi
+                )
+                # Test połączenia
+                self.client.ping()
+                self._connected = True
+            else:
+                # Próbujemy się połączyć, ale ignorujemy błędy
+                try:
+                    self.client = redis.Redis(
+                        host=host,
+                        port=port,
+                        db=db,
+                        password=password,
+                        socket_timeout=socket_timeout,
+                        decode_responses=True
+                    )
+                    # Test połączenia
+                    self.client.ping()
+                    self._connected = True
+                except (redis.ConnectionError, redis.exceptions.ConnectionError) as e:
+                    logger.warning(f"Failed to connect to Redis: {e}")
+                    print(f"Warning: Redis server not available at {host}:{port}")
+                    print("Redis features will be disabled. Set force_connection=True to require Redis connection.")
+                    self._connected = False
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to connect to Redis: {e}")
+                    print(f"Warning: Redis server not available at {host}:{port}")
+                    print("Redis features will be disabled. Set force_connection=True to require Redis connection.")
+                    self._connected = False
+                    return
+        except Exception as e:
+            if self.force_connection:
+                logger.error(f"Failed to connect to Redis: {e}")
+                raise
+            else:
+                logger.warning(f"Failed to connect to Redis: {e}")
+                print(f"Warning: Redis server not available at {host}:{port}")
+                print("Redis features will be disabled. Set force_connection=True to require Redis connection.")
+                self._connected = False
+                return
 
-        # Tworzymy klienta PubSub
-        self.pubsub = self.client.pubsub(ignore_subscribe_messages=True)
+        # Tworzymy klienta PubSub jeśli połączenie jest aktywne
+        if self._connected:
+            self.pubsub = self.client.pubsub(ignore_subscribe_messages=True)
 
     def register_function(self, func: Callable, metadata: Dict[str, Any]) -> None:
         """Rejestruje funkcję jako handler dla kanału Redis."""
+        if not self._connected:
+            logger.warning(f"Not connected to Redis, skipping registration of {func.__name__}")
+            print(f"Not connected to Redis, skipping registration of {func.__name__}")
+            return
+
         service_name = metadata.get("name", func.__name__)
 
         # Pobieramy konfigurację Redis
@@ -65,6 +118,9 @@ class RedisAdapter(ProtocolAdapter):
 
     def _message_handler(self, message):
         """Obsługuje wiadomości otrzymane przez PubSub."""
+        if not self._connected:
+            return
+
         if message["type"] not in ["message", "pmessage"]:
             return
 
@@ -79,7 +135,7 @@ class RedisAdapter(ProtocolAdapter):
             function_info = self.functions.get(channel)
 
         if not function_info:
-            print(f"Brak zarejestrowanej funkcji dla kanału: {channel}")
+            logger.warning(f"No registered function for channel: {channel}")
             return
 
         # Pobieramy dane wiadomości
@@ -113,7 +169,7 @@ class RedisAdapter(ProtocolAdapter):
             self.client.publish(response_channel, response)
 
         except json.JSONDecodeError:
-            print(f"Błąd parsowania JSON: {data}")
+            logger.error(f"JSON parsing error: {data}")
         except Exception as e:
             # Publikujemy błąd
             error_response = json.dumps({
@@ -123,10 +179,13 @@ class RedisAdapter(ProtocolAdapter):
             })
             error_channel = f"{channel}:error"
             self.client.publish(error_channel, error_response)
-            print(f"Błąd podczas przetwarzania wiadomości: {e}")
+            logger.error(f"Error processing message: {e}")
 
     def _listen_for_messages(self):
         """Nasłuchuje wiadomości z Redis w osobnym wątku."""
+        if not self._connected:
+            return
+
         while self.running:
             try:
                 # Nasłuchujemy wiadomości
@@ -141,84 +200,105 @@ class RedisAdapter(ProtocolAdapter):
                 time.sleep(0.01)  # Krótka przerwa dla CPU
 
             except redis.RedisError as e:
-                print(f"Błąd Redis: {e}")
+                logger.error(f"Redis error: {e}")
                 time.sleep(1.0)  # Dłuższa przerwa w przypadku błędu
             except Exception as e:
-                print(f"Nieoczekiwany błąd: {e}")
+                logger.error(f"Unexpected error: {e}")
                 time.sleep(1.0)
 
     def _update_subscriptions(self):
         """Aktualizuje subskrypcje Redis PubSub."""
-        for channel, function_info in self.functions.items():
-            if function_info.get("subscribed", False):
-                continue
+        if not self._connected:
+            return
 
-            # Subskrybujemy kanał lub wzorzec
-            if function_info["pattern"]:
-                self.pubsub.psubscribe(channel)
-            else:
-                self.pubsub.subscribe(channel)
+        try:
+            for channel, function_info in self.functions.items():
+                if function_info.get("subscribed", False):
+                    continue
 
-            # Oznaczamy jako zasubskrybowane
-            function_info["subscribed"] = True
+                # Subskrybujemy kanał lub wzorzec
+                if function_info["pattern"]:
+                    self.pubsub.psubscribe(channel)
+                else:
+                    self.pubsub.subscribe(channel)
+
+                # Oznaczamy jako zasubskrybowane
+                function_info["subscribed"] = True
+        except redis.RedisError as e:
+            logger.error(f"Redis error during subscription update: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error during subscription update: {e}")
 
     def start(self) -> None:
         """Uruchamia adapter Redis."""
-        if self.running:
+        if self.running or not self._connected:
             return
 
         self.running = True
 
-        # Aktualizujemy subskrypcje
-        self._update_subscriptions()
+        try:
+            # Aktualizujemy subskrypcje
+            self._update_subscriptions()
 
-        # Uruchamiamy wątek nasłuchujący
-        self.listen_thread = threading.Thread(target=self._listen_for_messages)
-        self.listen_thread.daemon = True
-        self.listen_thread.start()
+            # Uruchamiamy wątek nasłuchujący
+            self.listen_thread = threading.Thread(target=self._listen_for_messages)
+            self.listen_thread.daemon = True
+            self.listen_thread.start()
 
-        host = self.config.get("host", "localhost")
-        port = self.config.get("port", 6379)
-        print(f"Adapter Redis uruchomiony i połączony z {host}:{port}")
+            host = self.config.get("host", "localhost")
+            port = self.config.get("port", 6379)
+            logger.info(f"Redis adapter started and connected to {host}:{port}")
+            print(f"Adapter Redis uruchomiony i połączony z {host}:{port}")
 
-        # Publikujemy informację o uruchomieniu
-        status_channel = self.config.get("status_channel", "pifunc:status")
-        self.client.publish(
-            status_channel,
-            json.dumps({
-                "status": "online",
-                "timestamp": time.time(),
-                "channels": list(self.functions.keys())
-            })
-        )
+            # Publikujemy informację o uruchomieniu
+            status_channel = self.config.get("status_channel", "pifunc:status")
+            self.client.publish(
+                status_channel,
+                json.dumps({
+                    "status": "online",
+                    "timestamp": time.time(),
+                    "channels": list(self.functions.keys())
+                })
+            )
+        except Exception as e:
+            logger.error(f"Error starting Redis adapter: {e}")
+            if self.force_connection:
+                raise
+            else:
+                print(f"Warning: Failed to start Redis adapter: {e}")
+                print("Redis features will be disabled")
 
     def stop(self) -> None:
         """Zatrzymuje adapter Redis."""
-        if not self.running:
+        if not self.running or not self._connected:
             return
 
         self.running = False
 
-        # Publikujemy informację o zatrzymaniu
-        status_channel = self.config.get("status_channel", "pifunc:status")
-        self.client.publish(
-            status_channel,
-            json.dumps({
-                "status": "offline",
-                "timestamp": time.time()
-            })
-        )
+        try:
+            # Publikujemy informację o zatrzymaniu
+            status_channel = self.config.get("status_channel", "pifunc:status")
+            self.client.publish(
+                status_channel,
+                json.dumps({
+                    "status": "offline",
+                    "timestamp": time.time()
+                })
+            )
 
-        # Odsubskrybujemy wszystkie kanały
-        self.pubsub.unsubscribe()
-        self.pubsub.punsubscribe()
+            # Odsubskrybujemy wszystkie kanały
+            self.pubsub.unsubscribe()
+            self.pubsub.punsubscribe()
 
-        # Czekamy na zakończenie wątku
-        if self.listen_thread and self.listen_thread.is_alive():
-            self.listen_thread.join(timeout=2.0)
+            # Czekamy na zakończenie wątku
+            if self.listen_thread and self.listen_thread.is_alive():
+                self.listen_thread.join(timeout=2.0)
 
-        # Zamykamy połączenia
-        self.pubsub.close()
-        self.client.close()
+            # Zamykamy połączenia
+            self.pubsub.close()
+            self.client.close()
 
-        print("Adapter Redis zatrzymany")
+            logger.info("Redis adapter stopped")
+            print("Adapter Redis zatrzymany")
+        except Exception as e:
+            logger.error(f"Error stopping Redis adapter: {e}")

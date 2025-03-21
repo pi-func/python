@@ -1,9 +1,8 @@
-# src/pifunc/__init__.py
 """
 pifunc - Generate directory structures from ASCII art or Markdown files.
 """
 
-#from .cli import main
+# from .cli import main
 # Próbujemy zaimportować klienta, jeśli nie ma go, tworzymy stub
 try:
     from pifunc_client import PiFuncClient
@@ -19,30 +18,51 @@ except ImportError:
             return {}
 
 from functools import wraps
-# Import adapters
-from .adapters.http_adapter import HTTPAdapter
-from .adapters.websocket_adapter import WebSocketAdapter
-from .adapters.grpc_adapter import GRPCAdapter
-from .adapters.zeromq_adapter import ZeroMQAdapter
-from .adapters.redis_adapter import RedisAdapter
-from .adapters.mqtt_adapter import MQTTAdapter
-from .adapters.graphql_adapter import GraphQLAdapter
-from .adapters.amqp_adapter import AMQPAdapter
-from .adapters.cron_adapter import CRONAdapter
-
 import inspect
 import sys
 import os
 import signal
 import importlib.util
 from typing import Any, Callable, Dict, List, Optional, Set, Type
+import importlib
 
 __version__ = "0.1.11"
-__all__ = ["service", "run_services", "load_module_from_file", "pifunc_client", "PiFuncClient", "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
+__all__ = ["service", "run_services", "load_module_from_file", "pifunc_client", "PiFuncClient",
+           "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
 
 # Rejestr wszystkich zarejestrowanych funkcji
 _SERVICE_REGISTRY = {}
 _CLIENT_REGISTRY = {}
+
+# Dictionary to store adapter classes
+_ADAPTER_CLASSES = {}
+
+# Get enabled protocols from environment
+_ENABLED_PROTOCOLS = set(os.environ.get("PIFUNC_PROTOCOLS", "").lower().split(",")) or None
+
+
+def _import_adapter(protocol_name):
+    """Conditionally import adapter only when needed"""
+    if protocol_name in _ADAPTER_CLASSES:
+        return _ADAPTER_CLASSES[protocol_name]
+
+    # Skip if protocol is explicitly disabled
+    if _ENABLED_PROTOCOLS is not None and protocol_name not in _ENABLED_PROTOCOLS:
+        print(f"Protocol {protocol_name} is disabled by PIFUNC_PROTOCOLS environment variable")
+        return None
+
+    adapter_module_name = f"pifunc.adapters.{protocol_name}_adapter"
+    adapter_class_name = f"{protocol_name.capitalize()}Adapter"
+
+    try:
+        module = importlib.import_module(adapter_module_name)
+        adapter_class = getattr(module, adapter_class_name)
+        _ADAPTER_CLASSES[protocol_name] = adapter_class
+        return adapter_class
+    except (ImportError, AttributeError) as e:
+        print(f"Warning: Could not import {adapter_module_name}: {e}")
+        return None
+
 
 def http(path, method="GET"):
     """HTTP route decorator."""
@@ -61,6 +81,7 @@ def http(path, method="GET"):
 
     return decorator
 
+
 def websocket(event):
     """WebSocket event decorator."""
 
@@ -76,6 +97,7 @@ def websocket(event):
         return wrapper
 
     return decorator
+
 
 def grpc(service_name=None, method=None, streaming=False):
     """gRPC service decorator."""
@@ -95,6 +117,7 @@ def grpc(service_name=None, method=None, streaming=False):
 
     return decorator
 
+
 def mqtt(topic, qos=0):
     """MQTT topic decorator."""
 
@@ -111,6 +134,7 @@ def mqtt(topic, qos=0):
         return wrapper
 
     return decorator
+
 
 def zeromq(socket_type="REP", identity=None):
     """ZeroMQ socket decorator."""
@@ -129,6 +153,7 @@ def zeromq(socket_type="REP", identity=None):
 
     return decorator
 
+
 def redis(channel=None, pattern=None, command=None):
     """Redis pub/sub or command decorator."""
 
@@ -146,6 +171,7 @@ def redis(channel=None, pattern=None, command=None):
         return wrapper
 
     return decorator
+
 
 def amqp(queue=None, exchange=None, routing_key=None, exchange_type="direct"):
     """AMQP (RabbitMQ) decorator."""
@@ -166,6 +192,7 @@ def amqp(queue=None, exchange=None, routing_key=None, exchange_type="direct"):
 
     return decorator
 
+
 def graphql(field_name=None, is_mutation=False, description=None):
     """GraphQL field decorator."""
 
@@ -183,6 +210,7 @@ def graphql(field_name=None, is_mutation=False, description=None):
         return wrapper
 
     return decorator
+
 
 def cron(interval=None, at=None, cron_expression=None, description=None):
     """CRON job decorator."""
@@ -207,6 +235,7 @@ def cron(interval=None, at=None, cron_expression=None, description=None):
         return wrapper
 
     return decorator
+
 
 def client(
         protocol=None,
@@ -259,6 +288,7 @@ def client(
 
     return decorator
 
+
 def service(
         protocols: Optional[List[str]] = None,
         name: Optional[str] = None,
@@ -291,6 +321,10 @@ def service(
 
         # Ustalamy protokoły
         available_protocols = ["grpc", "http", "mqtt", "websocket", "graphql", "zeromq", "redis", "amqp", "cron"]
+        # Filter protocols by environment variable if set
+        if _ENABLED_PROTOCOLS is not None:
+            available_protocols = [p for p in available_protocols if p in _ENABLED_PROTOCOLS]
+
         enabled_protocols = protocols or available_protocols
 
         # Analizujemy sygnaturę funkcji
@@ -375,6 +409,7 @@ def service(
 
     return decorator
 
+
 def run_services(**config):
     """
     Uruchamia wszystkie zarejestrowane usługi z podaną konfiguracją.
@@ -383,40 +418,43 @@ def run_services(**config):
         **config: Konfiguracja dla poszczególnych protokołów i ogólne ustawienia.
                  Np. grpc={"port": 50051}, http={"port": 8080}, watch=True
     """
+    # Override enabled protocols from config if provided
+    explicit_protocols = config.pop("protocols", None)
+    if explicit_protocols:
+        global _ENABLED_PROTOCOLS
+        _ENABLED_PROTOCOLS = set(explicit_protocols)
+
     # Tworzymy słownik na adaptery
     adapters = {}
     clients = {}
 
-    # Importujemy tylko te adaptery, które są potrzebne
-    if "http" in config or "http" in _get_used_protocols():
-        adapters["http"] = HTTPAdapter()
+    # Get the list of protocols we need
+    required_protocols = set()
 
-    if "websocket" in config or "websocket" in _get_used_protocols():
-        adapters["websocket"] = WebSocketAdapter()
+    # Add protocols from config
+    for key in config.keys():
+        if key in ["http", "websocket", "grpc", "zeromq", "redis", "mqtt", "graphql", "amqp", "cron"]:
+            required_protocols.add(key)
 
-    if "grpc" in config or "grpc" in _get_used_protocols():
-        adapters["grpc"] = GRPCAdapter()
+    # Add protocols used by registered services
+    for protocol in _get_used_protocols():
+        required_protocols.add(protocol)
 
-    if "zeromq" in config or "zeromq" in _get_used_protocols():
-        adapters["zeromq"] = ZeroMQAdapter()
+    # Filter by enabled protocols
+    if _ENABLED_PROTOCOLS is not None:
+        required_protocols = required_protocols.intersection(_ENABLED_PROTOCOLS)
 
-    if "redis" in config or "redis" in _get_used_protocols():
-        adapters["redis"] = RedisAdapter()
+    # Dynamically import only needed adapters
+    for protocol in required_protocols:
+        adapter_class = _import_adapter(protocol)
+        if adapter_class:
+            adapters[protocol] = adapter_class()
+            print(f"Loaded adapter for protocol: {protocol}")
 
-    if "mqtt" in config or "mqtt" in _get_used_protocols():
-        adapters["mqtt"] = MQTTAdapter()
-
-    if "graphql" in config or "graphql" in _get_used_protocols():
-        adapters["graphql"] = GraphQLAdapter()
-
-    if "amqp" in config or "amqp" in _get_used_protocols():
-        adapters["amqp"] = AMQPAdapter()
-
-    if "cron" in config or "cron" in _get_used_protocols():
-        # Przygotowanie konfiguracji dla CRON, dodając dostępne klienty
+    # Prepare CRON configuration with clients
+    if "cron" in adapters:
         cron_config = config.get("cron", {}).copy() if "cron" in config else {}
         cron_config["clients"] = clients
-        adapters["cron"] = CRONAdapter()
         config["cron"] = cron_config
 
     # Konfigurujemy adaptery
@@ -465,6 +503,9 @@ def run_services(**config):
     # Rejestrujemy funkcje w adapterach
     for service_name, metadata in _SERVICE_REGISTRY.items():
         enabled_protocols = metadata.get("protocols", [])
+        # Filter by globally enabled protocols
+        if _ENABLED_PROTOCOLS is not None:
+            enabled_protocols = [p for p in enabled_protocols if p in _ENABLED_PROTOCOLS]
 
         for protocol in enabled_protocols:
             if protocol in adapters:
@@ -482,8 +523,11 @@ def run_services(**config):
 
     # Uruchamiamy adaptery
     for protocol, adapter in adapters.items():
-        if protocol in config or protocol in _get_used_protocols():
+        try:
             adapter.start()
+        except Exception as e:
+            print(f"Error starting {protocol} adapter: {e}")
+            # Don't fail completely if one adapter fails
 
     # Jeśli włączone jest watchowanie, uruchamiamy wątek monitorujący
     if config.get("watch", False):
@@ -499,7 +543,7 @@ def run_services(**config):
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    print(f"Uruchomiono {len(_SERVICE_REGISTRY)} usług przez {len(_get_used_protocols())} protokołów.")
+    print(f"Uruchomiono {len(_SERVICE_REGISTRY)} usług przez {len(adapters)} protokołów.")
 
     # Blokujemy główny wątek
     try:
@@ -514,6 +558,7 @@ def run_services(**config):
     except KeyboardInterrupt:
         handle_signal(None, None)
 
+
 def _get_used_protocols() -> Set[str]:
     """Zwraca zbiór protokołów używanych przez zarejestrowane usługi."""
     used_protocols = set()
@@ -522,6 +567,7 @@ def _get_used_protocols() -> Set[str]:
         used_protocols.update(metadata.get("protocols", []))
 
     return used_protocols
+
 
 def _start_file_watcher(adapters):
     """Uruchamia wątek monitorujący zmiany w plikach."""
@@ -565,6 +611,7 @@ def _start_file_watcher(adapters):
 
     thread = threading.Thread(target=watch_files, daemon=True)
     thread.start()
+
 
 # Funkcja do załadowania modułu z pliku
 def load_module_from_file(file_path):

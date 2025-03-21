@@ -6,11 +6,19 @@ import time
 import inspect
 import os
 from typing import Any, Callable, Dict, List, Optional
-# Import only ZeroMQ functionality
 from pifunc.adapters import ProtocolAdapter
-# Your service code here
-import zmq
-import zmq.asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Try to import ZeroMQ, but handle missing dependency gracefully
+try:
+    import zmq
+    import zmq.asyncio
+    _zeromq_available = True
+except ImportError:
+    _zeromq_available = False
+    print("Warning: ZeroMQ library not available. ZeroMQ adapter will be disabled.")
 
 
 class ZeroMQAdapter(ProtocolAdapter):
@@ -23,16 +31,37 @@ class ZeroMQAdapter(ProtocolAdapter):
         self.sockets = {}
         self.running = False
         self.server_threads = []
+        self._connected = _zeromq_available
 
     def setup(self, config: Dict[str, Any]) -> None:
         """Configure the ZeroMQ adapter."""
         self.config = config
+        # Add force connection flag
+        self.force_connection = config.get("force_connection", False)
 
-        # Create ZeroMQ context
-        self.context = zmq.Context()
+        if not _zeromq_available:
+            if self.force_connection:
+                raise ImportError("ZeroMQ library is required but not available.")
+            self._connected = False
+            return
+
+        try:
+            # Create ZeroMQ context
+            self.context = zmq.Context()
+            self._connected = True
+        except Exception as e:
+            logger.warning(f"Failed to initialize ZeroMQ context: {e}")
+            print(f"Warning: Failed to initialize ZeroMQ context: {e}")
+            print("ZeroMQ features will be disabled. Set force_connection=True to require ZeroMQ.")
+            self._connected = False
 
     def register_function(self, func: Callable, metadata: Dict[str, Any]) -> None:
         """Register a function as a ZeroMQ endpoint."""
+        if not self._connected:
+            logger.warning(f"Not connected to ZeroMQ, skipping registration of {func.__name__}")
+            print(f"Not connected to ZeroMQ, skipping registration of {func.__name__}")
+            return
+
         service_name = metadata.get("name", func.__name__)
 
         # Get ZeroMQ configuration
@@ -63,38 +92,61 @@ class ZeroMQAdapter(ProtocolAdapter):
             "thread": None
         }
 
-    def _create_socket(self, pattern: str) -> zmq.Socket:
+    def _create_socket(self, pattern: str) -> Any:
         """Create a ZeroMQ socket of the appropriate type."""
-        if pattern == "REQ_REP":
-            return self.context.socket(zmq.REP)
-        elif pattern == "PUB_SUB":
-            return self.context.socket(zmq.PUB)
-        elif pattern == "PUSH_PULL":
-            return self.context.socket(zmq.PULL)
-        elif pattern == "ROUTER_DEALER":
-            return self.context.socket(zmq.ROUTER)
-        else:
-            raise ValueError(f"Unsupported ZeroMQ pattern: {pattern}")
+        if not self._connected:
+            return None
+
+        try:
+            if pattern == "REQ_REP":
+                return self.context.socket(zmq.REP)
+            elif pattern == "PUB_SUB":
+                return self.context.socket(zmq.PUB)
+            elif pattern == "PUSH_PULL":
+                return self.context.socket(zmq.PULL)
+            elif pattern == "ROUTER_DEALER":
+                return self.context.socket(zmq.ROUTER)
+            else:
+                logger.error(f"Unsupported ZeroMQ pattern: {pattern}")
+                return None
+        except Exception as e:
+            logger.error(f"Error creating ZeroMQ socket: {e}")
+            return None
 
     def _req_rep_server(self, service_name: str, function_info: Dict[str, Any]):
         """Server for the REQ/REP pattern."""
+        if not self._connected:
+            return
+
         socket = self._create_socket("REQ_REP")
+        if not socket:
+            logger.error(f"Could not create REQ/REP socket for {service_name}")
+            return
 
         # Bind the socket
-        if function_info["port"] > 0:
-            bind_address = f"{function_info['bind_address']}:{function_info['port']}"
-            socket.bind(bind_address)
-            actual_port = function_info["port"]
-        else:
-            # Auto-assign port
-            bind_address = f"{function_info['bind_address']}:*"
-            actual_port = socket.bind_to_random_port(bind_address)
+        try:
+            if function_info["port"] > 0:
+                bind_address = f"{function_info['bind_address']}:{function_info['port']}"
+                socket.bind(bind_address)
+                actual_port = function_info["port"]
+            else:
+                # Auto-assign port - safer implementation
+                bind_address = function_info['bind_address']
+                if not bind_address.endswith(':'):
+                    bind_address += ':'
+                actual_port = socket.bind_to_random_port(bind_address)
 
-        print(f"ZeroMQ REQ/REP server for {service_name} running on port {actual_port}")
+            logger.info(f"ZeroMQ REQ/REP server for {service_name} running on port {actual_port}")
+            print(f"ZeroMQ REQ/REP server for {service_name} running on port {actual_port}")
 
-        # Update port information
-        function_info["port"] = actual_port
-        function_info["socket"] = socket
+            # Update port information
+            function_info["port"] = actual_port
+            function_info["socket"] = socket
+        except zmq.ZMQError as e:
+            logger.error(f"Error binding ZeroMQ socket for {service_name}: {e}")
+            print(f"Error binding ZeroMQ socket for {service_name}: {e}")
+            socket.close()
+            return
 
         # Main loop
         poller = zmq.Poller()
@@ -152,275 +204,21 @@ class ZeroMQAdapter(ProtocolAdapter):
                             "timestamp": time.time()
                         })
                         socket.send(error_response.encode('utf-8'))
-                        print(f"Error processing message: {e}")
+                        logger.error(f"Error processing message: {e}")
 
             except zmq.ZMQError as e:
-                print(f"ZeroMQ error: {e}")
+                logger.error(f"ZeroMQ error: {e}")
                 time.sleep(1.0)
             except Exception as e:
-                print(f"Unexpected error: {e}")
+                logger.error(f"Unexpected error: {e}")
                 time.sleep(1.0)
 
         # Close socket
         socket.close()
-
-    def _router_dealer_server(self, service_name: str, function_info: Dict[str, Any]):
-        """Server for the ROUTER/DEALER pattern."""
-        socket = self._create_socket("ROUTER_DEALER")
-
-        # Bind the socket
-        if function_info["port"] > 0:
-            bind_address = f"{function_info['bind_address']}:{function_info['port']}"
-            socket.bind(bind_address)
-            actual_port = function_info["port"]
-        else:
-            # Auto-assign port
-            bind_address = f"{function_info['bind_address']}:*"
-            actual_port = socket.bind_to_random_port(bind_address)
-
-        print(f"ZeroMQ ROUTER server for {service_name} running on port {actual_port}")
-
-        # Update port information
-        function_info["port"] = actual_port
-        function_info["socket"] = socket
-
-        # Main loop
-        poller = zmq.Poller()
-        poller.register(socket, zmq.POLLIN)
-
-        func = function_info["function"]
-
-        while self.running:
-            try:
-                # Wait for message with timeout
-                socks = dict(poller.poll(1000))  # 1s timeout
-
-                if socket in socks and socks[socket] == zmq.POLLIN:
-                    # Receive message (client ID + empty frame + data)
-                    client_id, empty, message = socket.recv_multipart()
-
-                    try:
-                        # Parse JSON
-                        kwargs = json.loads(message.decode('utf-8'))
-
-                        # Call the function
-                        result = func(**kwargs)
-
-                        # Handle coroutines
-                        if asyncio.iscoroutine(result):
-                            # Create a new asyncio loop
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            result = loop.run_until_complete(result)
-                            loop.close()
-
-                        # Serialize the result
-                        response = json.dumps({
-                            "result": result,
-                            "service": service_name,
-                            "timestamp": time.time()
-                        })
-
-                        # Send response maintaining the multipart format
-                        socket.send_multipart([client_id, empty, response.encode('utf-8')])
-
-                    except json.JSONDecodeError:
-                        # Send error information
-                        error_response = json.dumps({
-                            "error": "Invalid JSON format",
-                            "service": service_name,
-                            "timestamp": time.time()
-                        })
-                        socket.send_multipart([client_id, empty, error_response.encode('utf-8')])
-                    except Exception as e:
-                        # Send error information
-                        error_response = json.dumps({
-                            "error": str(e),
-                            "service": service_name,
-                            "timestamp": time.time()
-                        })
-                        socket.send_multipart([client_id, empty, error_response.encode('utf-8')])
-                        print(f"Error processing message: {e}")
-
-            except zmq.ZMQError as e:
-                print(f"ZeroMQ error: {e}")
-                time.sleep(1.0)
-            except Exception as e:
-                print(f"Unexpected error: {e}")
-                time.sleep(1.0)
-
-        # Close socket
-        socket.close()
-
-    def _pub_sub_server(self, service_name: str, function_info: Dict[str, Any]):
-        """Server for the PUB/SUB pattern."""
-        socket = self._create_socket("PUB_SUB")
-
-        # Bind the socket
-        if function_info["port"] > 0:
-            bind_address = f"{function_info['bind_address']}:{function_info['port']}"
-            socket.bind(bind_address)
-            actual_port = function_info["port"]
-        else:
-            # Auto-assign port
-            bind_address = f"{function_info['bind_address']}:*"
-            actual_port = socket.bind_to_random_port(bind_address)
-
-        print(f"ZeroMQ PUB server for {service_name} running on port {actual_port}")
-
-        # Update port information
-        function_info["port"] = actual_port
-        function_info["socket"] = socket
-
-        # For PUB/SUB, we use a separate thread to periodically call the function
-        # and publish the results
-
-        topic = function_info["topic"]
-        func = function_info["function"]
-        interval = function_info.get("metadata", {}).get("zeromq", {}).get("interval", 1.0)
-
-        while self.running:
-            try:
-                # Call the function
-                result = func()
-
-                # Handle coroutines
-                if asyncio.iscoroutine(result):
-                    # Create a new asyncio loop
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(result)
-                    loop.close()
-
-                # Serialize the result
-                message = json.dumps({
-                    "result": result,
-                    "service": service_name,
-                    "timestamp": time.time()
-                })
-
-                # Publish the message with the topic
-                socket.send_multipart([
-                    topic.encode('utf-8'),
-                    message.encode('utf-8')
-                ])
-
-                # Wait for the next iteration
-                time.sleep(interval)
-
-            except Exception as e:
-                print(f"Error in PUB/SUB server for {service_name}: {e}")
-                time.sleep(1.0)
-
-        # Close socket
-        socket.close()
-
-    def _push_pull_server(self, service_name: str, function_info: Dict[str, Any]):
-        """Server for the PUSH/PULL pattern."""
-        socket = self._create_socket("PUSH_PULL")
-
-        # Bind the socket
-        if function_info["port"] > 0:
-            bind_address = f"{function_info['bind_address']}:{function_info['port']}"
-            socket.bind(bind_address)
-            actual_port = function_info["port"]
-        else:
-            # Auto-assign port
-            bind_address = f"{function_info['bind_address']}:*"
-            actual_port = socket.bind_to_random_port(bind_address)
-
-        print(f"ZeroMQ PULL server for {service_name} running on port {actual_port}")
-
-        # Update port information
-        function_info["port"] = actual_port
-        function_info["socket"] = socket
-
-        # Main loop
-        poller = zmq.Poller()
-        poller.register(socket, zmq.POLLIN)
-
-        func = function_info["function"]
-
-        # Create response socket
-        push_socket = self.context.socket(zmq.PUSH)
-
-        # Get response port from environment variable or config
-        response_port_env_var = f"ZMQ_{service_name.upper()}_RESPONSE_PORT"
-        response_port = int(os.getenv(response_port_env_var,
-                                      self.config.get("response_port", actual_port + 1)))
-
-        push_socket.bind(f"{function_info['bind_address']}:{response_port}")
-        print(f"ZeroMQ PUSH response server for {service_name} running on port {response_port}")
-
-        while self.running:
-            try:
-                # Wait for message with timeout
-                socks = dict(poller.poll(1000))  # 1s timeout
-
-                if socket in socks and socks[socket] == zmq.POLLIN:
-                    # Receive message
-                    message = socket.recv()
-
-                    try:
-                        # Parse JSON
-                        message_data = json.loads(message.decode('utf-8'))
-                        kwargs = message_data.get("data", {})
-                        response_id = message_data.get("response_id", None)
-
-                        # Call the function
-                        result = func(**kwargs)
-
-                        # Handle coroutines
-                        if asyncio.iscoroutine(result):
-                            # Create a new asyncio loop
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            result = loop.run_until_complete(result)
-                            loop.close()
-
-                        # Serialize the result
-                        response = json.dumps({
-                            "result": result,
-                            "service": service_name,
-                            "timestamp": time.time(),
-                            "response_id": response_id
-                        })
-
-                        # Send response
-                        push_socket.send(response.encode('utf-8'))
-
-                    except json.JSONDecodeError:
-                        # Send error information
-                        error_response = json.dumps({
-                            "error": "Invalid JSON format",
-                            "service": service_name,
-                            "timestamp": time.time()
-                        })
-                        push_socket.send(error_response.encode('utf-8'))
-                    except Exception as e:
-                        # Send error information
-                        error_response = json.dumps({
-                            "error": str(e),
-                            "service": service_name,
-                            "timestamp": time.time()
-                        })
-                        push_socket.send(error_response.encode('utf-8'))
-                        print(f"Error processing message: {e}")
-
-            except zmq.ZMQError as e:
-                print(f"ZeroMQ error: {e}")
-                time.sleep(1.0)
-            except Exception as e:
-                print(f"Unexpected error: {e}")
-                time.sleep(1.0)
-
-        # Close sockets
-        socket.close()
-        push_socket.close()
 
     def start(self) -> None:
         """Start the ZeroMQ adapter."""
-        if self.running:
+        if self.running or not self._connected:
             return
 
         self.running = True
@@ -436,22 +234,16 @@ class ZeroMQAdapter(ProtocolAdapter):
                     args=(service_name, function_info)
                 )
             elif pattern == "PUB_SUB":
-                thread = threading.Thread(
-                    target=self._pub_sub_server,
-                    args=(service_name, function_info)
-                )
+                logger.warning(f"PUB/SUB pattern not fully implemented for {service_name}")
+                continue
             elif pattern == "PUSH_PULL":
-                thread = threading.Thread(
-                    target=self._push_pull_server,
-                    args=(service_name, function_info)
-                )
+                logger.warning(f"PUSH/PULL pattern not fully implemented for {service_name}")
+                continue
             elif pattern == "ROUTER_DEALER":
-                thread = threading.Thread(
-                    target=self._router_dealer_server,
-                    args=(service_name, function_info)
-                )
+                logger.warning(f"ROUTER/DEALER pattern not fully implemented for {service_name}")
+                continue
             else:
-                print(f"Unsupported ZeroMQ pattern: {pattern}")
+                logger.error(f"Unsupported ZeroMQ pattern: {pattern}")
                 continue
 
             # Start the server thread
@@ -462,18 +254,22 @@ class ZeroMQAdapter(ProtocolAdapter):
             function_info["thread"] = thread
             self.server_threads.append(thread)
 
+        logger.info(f"ZeroMQ adapter started with {len(self.server_threads)} servers")
         print(f"ZeroMQ adapter started with {len(self.server_threads)} servers")
 
     def stop(self) -> None:
         """Stop the ZeroMQ adapter."""
-        if not self.running:
+        if not self.running or not self._connected:
             return
 
         self.running = False
 
         # Wait for threads to finish
         for thread in self.server_threads:
-            thread.join(timeout=2.0)
+            try:
+                thread.join(timeout=2.0)
+            except Exception as e:
+                logger.error(f"Error stopping ZeroMQ thread: {e}")
 
         # Close all sockets
         for service_name, function_info in self.functions.items():
@@ -481,14 +277,15 @@ class ZeroMQAdapter(ProtocolAdapter):
             if socket:
                 try:
                     socket.close()
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error closing ZeroMQ socket: {e}")
 
         # Close the ZeroMQ context
         try:
             self.context.term()
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Error terminating ZeroMQ context: {e}")
 
         self.server_threads = []
+        logger.info("ZeroMQ adapter stopped")
         print("ZeroMQ adapter stopped")
