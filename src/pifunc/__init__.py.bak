@@ -32,7 +32,7 @@ except ImportError:
             logger.warning(f"PiFuncClient stub called for {service_name}")
             return {}
 
-__version__ = "0.1.16"
+__version__ = "0.1.17"
 __all__ = ["service", "client", "run_services", "load_module_from_file", "PiFuncClient",
            "http", "websocket", "grpc", "mqtt", "zeromq", "redis", "amqp", "graphql", "cron"]
 
@@ -261,6 +261,12 @@ def service(name=None, description=None, **protocol_configs):
         # Dodajemy konfiguracje przekazane jako argumenty
         for protocol, config in protocol_configs.items():
             if protocol in _AVAILABLE_PROTOCOLS:
+                # Validate protocol configuration
+                if protocol == "http":
+                    valid_keys = {"path", "method", "middleware"}
+                    invalid_keys = set(config.keys()) - valid_keys
+                    if invalid_keys:
+                        raise ValueError(f"Invalid HTTP configuration keys: {invalid_keys}. Valid keys are: {valid_keys}")
                 metadata[protocol] = config
 
         # Sprawdzamy, czy funkcja jest klientem

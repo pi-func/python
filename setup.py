@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pifunc",
-    version="0.1.17",
+    version="0.1.18",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     description="Protocol Interface Functions",

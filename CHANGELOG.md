@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.18] - 2025-04-29
+
+### Added
+- Changes in calculator3_test.sh
+- Changes in docs/Trigger.md
+- Changes in docs/decorators.md
+- Changes in docs/interfaces.md
+- Changes in docs/pipeline.md
+
 ## [0.1.17] - 2025-03-21
 
 ## [0.1.16] - 2025-03-21

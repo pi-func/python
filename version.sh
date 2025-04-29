@@ -4,6 +4,22 @@ rm -rf *.egg-info
 rm -rf dist
 rm -rf build
 
+
+echo "Starting publication process..."
+
+python -m venv venv
+source venv/bin/activate
+
+
+# Upewnij się że mamy najnowsze narzędzia
+pip install --upgrade pip build twine
+
+# Sprawdź czy jesteśmy w virtualenv
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Aktywuj najpierw virtualenv!"
+    exit 1
+fi
+
 # Zainstaluj w trybie edytowalnym
 pip install -e .
 python increment_init.py -f src/pifunc/__init__.py

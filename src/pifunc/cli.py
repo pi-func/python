@@ -86,8 +86,13 @@ def get_version():
 def call_function(args):
     """Call a PIfunc function using the specified protocol."""
     function_name = args.function
-    function_args = json.loads(args.args)
     protocol = args.protocol.lower()
+
+    try:
+        function_args = json.loads(args.args)
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON arguments: {e}")
+        return 1
 
     if protocol == "http":
         return call_http_function(args, function_name, function_args)
